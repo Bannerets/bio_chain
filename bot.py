@@ -10,6 +10,7 @@ import html
 CHAT_ID = -1001113029151
 DB_FILENAME = 'users.json'
 LAST_CHAIN_FILENAME = 'last_chain.txt'
+LAST_PIN_FILENAME = 'last_pin.txt'
 r_scrape_bio = re.compile(r'<meta +property="og:description" +content="(.+?)".*>')
 r_username = re.compile(r'@([a-zA-Z][\w\d]{4,31})')
 
@@ -107,7 +108,7 @@ def update_user(bot, db, user_id):
     try:
         user = bot.getChatMember(CHAT_ID, user_id).user
     except Exception as e:
-        print('USER NOT IN GROUP???', e)
+        print('USER NOT IN GROUP???', user_id, e)
         return
 
     if user_id not in db:
@@ -137,7 +138,7 @@ def update_user(bot, db, user_id):
 
     # if no links, watch this person
     if not link_id and user_id != '51863899':
-        print(f'{user.first_name} has no valid links!')
+        print(f'{user.username} has no valid links!')
         db[user_id].reset_expiry(10)
     else:
         db[user_id].reset_expiry(60)
@@ -162,7 +163,7 @@ def send_message(bot, text):
         parse_mode='Markdown',
     )
 
-def rebuild_chain(bot, db, trigger_id):
+def verify_user(bot, db, trigger_id):
     trigger = db[trigger_id]
     linker_ids = []
 
@@ -174,13 +175,13 @@ def rebuild_chain(bot, db, trigger_id):
     # verify that everyone who points to the trigger points to the currect username
     for linker_id in linker_ids:
         if db[linker_id].link_username.lower() != trigger.username.lower():
-            if trigger.username:
-                message = '@{} has changed their username to {}, @{} needs to update their bio'.format(
-                    db[linker_id].link_username,
-                    '@'+trigger.username if trigger.username else 'nothing',
-                    db[linker_id].username
-                )
-                send_message(bot, message)
+            message = '@{} has changed their username to {}, @{} needs to update their bio.'.format(
+                db[linker_id].link_username,
+                '@'+trigger.username if trigger.username else 'nothing',
+                db[linker_id].username
+            )
+
+            send_message(bot, message)
 
 
     # verify that trigger links to a valid username (only if they previously had a valid link!)
@@ -198,7 +199,8 @@ def rebuild_chain(bot, db, trigger_id):
             )
         send_message(bot, message)
 
-    # find the head that results in the best chain
+def rebuild_chain(db):
+    # find the head that results in the longest chain
     best_length = 0
     best_chain = []
     for head_id, head in db.items():
@@ -210,9 +212,10 @@ def rebuild_chain(bot, db, trigger_id):
             best_chain = this_chain
             best_length = len(this_chain)
 
-    chain_output = '```\nChain length: {}\n\n'.format(len(best_chain))
+    # make a string from the chain list
+    chain_output = '```\nChain length: {}\n\n'.format(len(best_chain)-1)
     for user_id in best_chain:
-        chain_output += db[user_id].username
+        chain_output += f'@{db[user_id].username}'
         link_id = db[user_id].link_id
 
         if link_id not in db:
@@ -225,6 +228,31 @@ def rebuild_chain(bot, db, trigger_id):
 
     return chain_output + '```'
 
+def send_chain(bot, chain_text):
+    # get last message
+    with open(LAST_PIN_FILENAME) as f:
+        last_pin_id = f.read()
+
+    try:
+        bot.editMessageText(
+            chat_id=CHAT_ID,
+            message_id=last_pin_id,
+            text=chain_text,
+            parse_mode='Markdown'
+        )
+    except:
+        message = send_message(bot, chain_text)
+        if message:
+            bot.pinChatMessage(
+                chat_id=CHAT_ID,
+                message_id=message.message_id,
+                disable_notification=True
+            )
+            with open(LAST_PIN_FILENAME, 'w') as f:
+                f.write(str(message.message_id))
+    finally:
+        with open(LAST_CHAIN_FILENAME, 'w') as f:
+            f.write(chain_text)
 
 
 def main():
@@ -240,37 +268,36 @@ def main():
 
     next_update_id = -1
     while 1:
-        for user_id, user in db.items():
-            if user.is_expired():
-                update_user(bot, db, user_id)
-
-        updates = bot.getUpdates(offset=next_update_id)
-        for update in updates:
-            for user_id in get_update_user_ids(update):
-                if str(user_id) not in db:
+        try:
+            # update expired users
+            for user_id, user in db.items():
+                if user.is_expired():
                     update_user(bot, db, user_id)
-            next_update_id = update.update_id + 1
 
-        this_chain = rebuild_chain(bot, db, '51863899')
-        for user_id, user in db.items():
-            if user.has_changed:
-                this_chain = rebuild_chain(bot, db, user_id)
-                user.has_changed = False
-                save_db(db)
+            # find updates from users that we don't know, and add them to the db
+            updates = bot.getUpdates(offset=next_update_id)
+            for update in updates:
+                for user_id in get_update_user_ids(update):
+                    if str(user_id) not in db:
+                        update_user(bot, db, user_id)
+                next_update_id = update.update_id + 1
 
-        if this_chain and this_chain.lower() != last_chain.lower():
-            message = send_message(bot, this_chain)
-            if message:
-                bot.pinChatMessage(
-                    chat_id=CHAT_ID,
-                    message_id=message.message_id,
-                    disable_notification=True
-                )
-            with open(LAST_CHAIN_FILENAME, 'w') as f:
-                f.write(this_chain)
-            last_chain = this_chain
+            # handle users that changed
+            for user_id, user in db.items():
+                if user.has_changed:
+                    verify_user(bot, db, user_id)
+                    user.has_changed = False
+                    save_db(db)
 
-        time.sleep(1)
+            # rebuild the chain and send it if it's different from the previous one
+            this_chain = rebuild_chain(db)
+            if this_chain.lower() != last_chain.lower():
+                send_chain(bot, this_chain)
+                last_chain = this_chain
+
+            time.sleep(1)
+        except Exception as e:
+            print("Encountered exception while running main loop:", e)
 
 if __name__ == '__main__':
     main()
