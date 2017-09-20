@@ -8,9 +8,9 @@ import html
 
 
 CHAT_ID = -1001113029151
-DB_FILENAME = 'users.json.bc'
-LAST_CHAIN_FILENAME = 'last_chain.txt.bc'
-LAST_PIN_FILENAME = 'last_pin.txt.bc'
+DB_FILENAME = 'users.json'
+LAST_CHAIN_FILENAME = 'last_chain.txt'
+LAST_PIN_FILENAME = 'last_pin.txt'
 r_scrape_bio = re.compile(r'<meta +property="og:description" +content="(.+?)".*>')
 r_username = re.compile(r'@([a-zA-Z][\w\d]{4,31})')
 
@@ -85,16 +85,18 @@ def get_bio(username):
 
 
 def resolve_username(db, username):
-    """Attemps to get the ID for the given username by checking in the db.
-       Returns a tuple of (id, username), where (id) may be None if not found.
+    """
+    Attemps to get the ID for the given username by checking in the db.
+    Returns a tuple of (id, username), where (id) may be None if not found.
     """
     for this_id, this_user in db.items():
         if username.lower() == this_user.username.lower():
             return this_id
 
 
-# gets new data for a user and updates the db
+
 def update_user(bot, db, user_id):
+    """gets new data for a user and updates the db"""
     user_id = str(user_id)
 
     # get the user so we have an up-to-date username for this id
@@ -264,7 +266,7 @@ def main():
     bot = telegram.Bot(os.environ['tg_bot_biochain_token'])
 
     next_update_id = -1
-    while True:
+    while 1:
         try:
             # update expired users
             for user_id, user in db.items():
