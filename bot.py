@@ -106,7 +106,7 @@ def update_user(bot, db, user_id):
         if hasattr(chat, 'username'):
             username = chat.username
     except Exception as e:
-        print('USER NOT IN GROUP???', user_id, e)
+        print('I dont know who this user is:', user_id, e)
 
     if user_id not in db:
         db[user_id] = User(user_id)
