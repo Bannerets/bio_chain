@@ -58,8 +58,8 @@ class User(object):
         self.link_id = link_id
 
 
-# dumps the important data to the json file
 def save_db(db):
+    """Dumps the most important data to DB_FILENAME as JSON"""
     db_dict = {}
 
     for user_id, user in db.items():
@@ -73,8 +73,8 @@ def save_db(db):
         json.dump(db_dict, f)
 
 
-# scrapes bio from t.me
 def get_bio(username):
+    """Scrapes the bio from t.me/username"""
     r = requests.get(f'http://t.me/{username}')
     if not r.ok:
         print(f"Request for @{username}'s bio failed")
@@ -84,12 +84,13 @@ def get_bio(username):
     return html.unescape(bio[0]) if bio else ''
 
 
-# attempts to get the id of a user from their username by checking the db
 def resolve_username(db, username):
+    """Attemps to get the ID for the given username by checking in the db.
+       Returns a tuple of (id, username), where (id) may be None if not found.
+    """
     for this_id, this_user in db.items():
         if username.lower() == this_user.username.lower():
-            return this_id, this_user.username
-    return None, username
+            return this_id
 
 
 # gets new data for a user and updates the db
@@ -120,10 +121,11 @@ def update_user(bot, db, user_id):
     # find first valid (in the db) username link
     links = r_username.findall(get_bio(user.username))
     link_id = None
-    link_username = None
+    link_username = links[-1]
     for link in links:
-        link_id, link_username = resolve_username(db, link)
+        link_id = resolve_username(db, link)
         if link_id:
+            link_username = link
             break
 
     db[user_id].update_data(user.username, link_username, link_id)
@@ -136,14 +138,16 @@ def update_user(bot, db, user_id):
         db[user_id].reset_expiry(60)
 
 
-# returns the user_id's associated with an update in the chat
 def get_update_user_ids(update):
+    """Returns the user IDs associated with an update in the chat"""
     ids = []
     if update.message and update.message.chat.id == CHAT_ID:
         for user in update.message.new_chat_members:
-            if not user.is_bot: ids.append(user.id)
+            if not user.is_bot:
+                ids.append(user.id)
         user = update.message.from_user
-        if not user.is_bot: ids.append(user.id)
+        if not user.is_bot:
+            ids.append(user.id)
 
     return ids
 
@@ -164,7 +168,8 @@ def verify_user(bot, db, trigger_id):
         if user.link_id == trigger_id:
             linker_ids.append(user_id)
 
-    # verify that everyone who points to the trigger points to the currect username
+    # verify that everyone who points to the
+    # trigger points to the currect username
     for linker_id in linker_ids:
         if db[linker_id].link_username.lower() != trigger.username.lower():
             message = '@{} has changed their username to {}, @{} needs to update their bio.'.format(
@@ -175,10 +180,10 @@ def verify_user(bot, db, trigger_id):
 
             send_message(bot, message)
 
-
     # verify that trigger links to a valid username (only if they previously had a valid link!)
     # if not, then inform them and whoever links to them
-    if trigger.link_id in db and db[trigger.link_id].username.lower() != trigger.link_username.lower():
+    if trigger.link_id in db and \
+            db[trigger.link_id].username.lower() != trigger.link_username.lower():
         message = '@{} has an invalid link to {} (previously: @{})'.format(
             trigger.username,
             '@'+trigger.link_username if trigger.link_username else 'no one',
@@ -259,7 +264,7 @@ def main():
     bot = telegram.Bot(os.environ['tg_bot_biochain_token'])
 
     next_update_id = -1
-    while 1:
+    while True:
         try:
             # update expired users
             for user_id, user in db.items():
