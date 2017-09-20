@@ -24,14 +24,10 @@ class User(object):
         self.expires = 0
         self.has_changed = False
 
-        self.username = ''
-        self.link_id = '0'
-        self.link_username = ''
-
-        if data:
-            if 'username' in data: self.username = data['username']
-            if 'link_id' in data: self.link_id = data['link_id']
-            if 'link_username' in data: self.link_username = data['link_username']
+        data = data if data else {}
+        self.username = data.get('username', '')
+        self.link_id = data.get('link_id', '0')
+        self.link_username = data.get('link_username', '')
 
     def is_expired(self):
         return time.time() > self.expires
@@ -40,10 +36,11 @@ class User(object):
         self.expires = time.time() + seconds
 
     def update_data(self, username, link_username, link_id):
-        username = '' if not username else username
-        link_username = '' if not link_username else link_username
+        username = username if username else ''
+        link_username = link_username if link_username else ''
         # allows detection of changing to an invalid link:
-        # since this results from being unable to resolve link_username, this is the previous link_id
+        # since this results from being unable to resolve link_username,
+        # this is the previous link_id
         link_id = link_id if link_id else self.link_id
 
         if username.lower() != self.username.lower():
@@ -59,7 +56,6 @@ class User(object):
         self.username = username
         self.link_username = link_username
         self.link_id = link_id
-
 
 
 # dumps the important data to the json file
@@ -79,17 +75,13 @@ def save_db(db):
 
 # scrapes bio from t.me
 def get_bio(username):
-    #if username.lower() == 'katewastaken':
-    #    return '@blonami'
-
     r = requests.get(f'http://t.me/{username}')
     if not r.ok:
-        print(f'Request for @{username}\'s bio failed')
-        return None
+        print(f"Request for @{username}'s bio failed")
+        return ''
 
     bio = r_scrape_bio.findall(r.text)
-    if not bio: return ''
-    return html.unescape(bio[0])
+    return html.unescape(bio[0]) if bio else ''
 
 
 # attempts to get the id of a user from their username by checking the db
