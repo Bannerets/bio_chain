@@ -24,14 +24,10 @@ class User(object):
         self.expires = 0
         self.has_changed = False
 
-        self.username = ''
-        self.link_id = '0'
-        self.link_username = ''
-
-        if data:
-            if 'username' in data: self.username = data['username']
-            if 'link_id' in data: self.link_id = data['link_id']
-            if 'link_username' in data: self.link_username = data['link_username']
+        data = data if data else {}
+        self.username = data.get('username', '')
+        self.link_id = data.get('link_id', '0')
+        self.link_username = data.get('link_username', '')
 
     def is_expired(self):
         return time.time() > self.expires
@@ -40,10 +36,11 @@ class User(object):
         self.expires = time.time() + seconds
 
     def update_data(self, username, link_username, link_id):
-        username = '' if not username else username
-        link_username = '' if not link_username else link_username
+        username = username if username else ''
+        link_username = link_username if link_username else ''
         # allows detection of changing to an invalid link:
-        # since this results from being unable to resolve link_username, this is the previous link_id
+        # since this results from being unable to resolve link_username,
+        # this is the previous link_id
         link_id = link_id if link_id else self.link_id
 
         if username.lower() != self.username.lower():
@@ -61,9 +58,8 @@ class User(object):
         self.link_id = link_id
 
 
-
-# dumps the important data to the json file
 def save_db(db):
+    """Dumps the most important data to DB_FILENAME as JSON"""
     db_dict = {}
 
     for user_id, user in db.items():
@@ -77,31 +73,30 @@ def save_db(db):
         json.dump(db_dict, f)
 
 
-# scrapes bio from t.me
 def get_bio(username):
-    #if username.lower() == 'katewastaken':
-    #    return '@blonami'
-
+    """Scrapes the bio from t.me/username"""
     r = requests.get(f'http://t.me/{username}')
     if not r.ok:
-        print(f'Request for @{username}\'s bio failed')
+        print(f"Request for @{username}'s bio failed")
         return ''
 
     bio = r_scrape_bio.findall(r.text)
-    if not bio: return ''
-    return html.unescape(bio[0])
+    return html.unescape(bio[0]) if bio else ''
 
 
-# attempts to get the id of a user from their username by checking the db
 def resolve_username(db, username):
+    """
+    Attemps to get the ID for the given username by checking in the db.
+    Returns a tuple of (id, username), where (id) may be None if not found.
+    """
     for this_id, this_user in db.items():
         if username.lower() == this_user.username.lower():
-            return this_id, this_user.username
-    return None, username
+            return this_id
 
 
-# gets new data for a user and updates the db
+
 def update_user(bot, db, user_id):
+    """gets new data for a user and updates the db"""
     user_id = str(user_id)
 
     # get the user so we have an up-to-date username for this id
@@ -128,10 +123,11 @@ def update_user(bot, db, user_id):
     # find first valid (in the db) username link
     links = r_username.findall(get_bio(user.username))
     link_id = None
-    link_username = None
+    link_username = links[-1]
     for link in links:
-        link_id, link_username = resolve_username(db, link)
+        link_id = resolve_username(db, link)
         if link_id:
+            link_username = link
             break
 
     db[user_id].update_data(user.username, link_username, link_id)
@@ -144,17 +140,18 @@ def update_user(bot, db, user_id):
         db[user_id].reset_expiry(60)
 
 
-# returns the user_id's associated with an update in the chat
 def get_update_user_ids(update):
+    """Returns the user IDs associated with an update in the chat"""
     ids = []
     if update.message and update.message.chat.id == CHAT_ID:
         for user in update.message.new_chat_members:
-            if not user.is_bot: ids.append(user.id)
+            if not user.is_bot:
+                ids.append(user.id)
         user = update.message.from_user
-        if not user.is_bot: ids.append(user.id)
+        if not user.is_bot:
+            ids.append(user.id)
 
     return ids
-
 
 def send_message(bot, text):
     print('out:', text)
@@ -163,7 +160,6 @@ def send_message(bot, text):
         text=text,
         parse_mode='Markdown',
     )
-
 
 def verify_user(bot, db, trigger_id):
     trigger = db[trigger_id]
@@ -174,7 +170,8 @@ def verify_user(bot, db, trigger_id):
         if user.link_id == trigger_id:
             linker_ids.append(user_id)
 
-    # verify that everyone who points to the trigger points to the currect username
+    # verify that everyone who points to the
+    # trigger points to the currect username
     for linker_id in linker_ids:
         if db[linker_id].link_username.lower() != trigger.username.lower():
             message = '@{} has changed their username to {}, @{} needs to update their bio.'.format(
@@ -185,10 +182,10 @@ def verify_user(bot, db, trigger_id):
 
             send_message(bot, message)
 
-
     # verify that trigger links to a valid username (only if they previously had a valid link!)
     # if not, then inform them and whoever links to them
-    if trigger.link_id in db and db[trigger.link_id].username.lower() != trigger.link_username.lower():
+    if trigger.link_id in db and \
+            db[trigger.link_id].username.lower() != trigger.link_username.lower():
         message = '@{} has an invalid link to {} (previously: @{})'.format(
             trigger.username,
             '@'+trigger.link_username if trigger.link_username else 'no one',
@@ -200,7 +197,6 @@ def verify_user(bot, db, trigger_id):
                 trigger.username
             )
         send_message(bot, message)
-
 
 def rebuild_chain(db):
     # find the head that results in the longest chain
@@ -231,14 +227,10 @@ def rebuild_chain(db):
 
     return chain_output + '```'
 
-
 def send_chain(bot, chain_text):
     # get last message
-    try:
-        with open(LAST_PIN_FILENAME) as f:
-            last_pin_id = f.read()
-    except:
-        last_pin_id = 0
+    with open(LAST_PIN_FILENAME) as f:
+        last_pin_id = f.read()
 
     try:
         bot.editMessageText(
