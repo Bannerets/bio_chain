@@ -8,9 +8,9 @@ import html
 
 
 CHAT_ID = -1001113029151
-DB_FILENAME = 'users.json'
-LAST_CHAIN_FILENAME = 'last_chain.txt'
-LAST_PIN_FILENAME = 'last_pin.txt'
+DB_FILENAME = 'users.json.bc'
+LAST_CHAIN_FILENAME = 'last_chain.txt.bc'
+LAST_PIN_FILENAME = 'last_pin.txt.bc'
 r_scrape_bio = re.compile(r'<meta +property="og:description" +content="(.+?)".*>')
 r_username = re.compile(r'@([a-zA-Z][\w\d]{4,31})')
 
@@ -85,7 +85,7 @@ def get_bio(username):
     r = requests.get(f'http://t.me/{username}')
     if not r.ok:
         print(f'Request for @{username}\'s bio failed')
-        return ''
+        return None
 
     bio = r_scrape_bio.findall(r.text)
     if not bio: return ''
@@ -155,7 +155,6 @@ def get_update_user_ids(update):
 
     return ids
 
-
 def send_message(bot, text):
     print('out:', text)
     return bot.sendMessage(
@@ -163,7 +162,6 @@ def send_message(bot, text):
         text=text,
         parse_mode='Markdown',
     )
-
 
 def verify_user(bot, db, trigger_id):
     trigger = db[trigger_id]
@@ -201,7 +199,6 @@ def verify_user(bot, db, trigger_id):
             )
         send_message(bot, message)
 
-
 def rebuild_chain(db):
     # find the head that results in the longest chain
     best_length = 0
@@ -231,14 +228,10 @@ def rebuild_chain(db):
 
     return chain_output + '```'
 
-
 def send_chain(bot, chain_text):
     # get last message
-    try:
-        with open(LAST_PIN_FILENAME) as f:
-            last_pin_id = f.read()
-    except:
-        last_pin_id = 0
+    with open(LAST_PIN_FILENAME) as f:
+        last_pin_id = f.read()
 
     try:
         bot.editMessageText(
