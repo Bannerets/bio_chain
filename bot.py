@@ -87,7 +87,7 @@ def get_bio(username):
 def resolve_username(db, username):
     """
     Attemps to get the ID for the given username by checking in the db.
-    Returns a tuple of (id, username), where id may be None if not found.
+    Returns the id of the user (may be None if not found).
     """
     for this_id, this_user in db.items():
         if username.lower() == this_user.username.lower():
