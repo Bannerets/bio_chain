@@ -87,7 +87,7 @@ def get_bio(username):
 def resolve_username(db, username):
     """
     Attemps to get the ID for the given username by checking in the db.
-    Returns a tuple of (id, username), where (id) may be None if not found.
+    Returns a tuple of (id, username), where id may be None if not found.
     """
     for this_id, this_user in db.items():
         if username.lower() == this_user.username.lower():
@@ -100,41 +100,43 @@ def update_user(bot, db, user_id):
     user_id = str(user_id)
 
     # get the user so we have an up-to-date username for this id
+    username = resolve_username(db, user_id)
     try:
-        user = bot.getChatMember(CHAT_ID, user_id).user
+        chat = bot.getChat(user_id)
+        if hasattr(chat, 'username'):
+            username = chat.username
     except Exception as e:
         print('USER NOT IN GROUP???', user_id, e)
-        return
 
     if user_id not in db:
         db[user_id] = User(user_id)
         print(f'added {user_id} to the db')
 
-    # ignore bots
-    if user.is_bot:
-        return
-
     # if no username, watch this person
-    if not hasattr(user, 'username'):
+    if not username:
         db[user_id].reset_expiry(10)
-        print(f'{user.first_name} has no username!')
+        print(f'{user_id} has no username!')
         return
 
     # find first valid (in the db) username link
-    links = r_username.findall(get_bio(user.username))
+    links = r_username.findall(get_bio(username))
     link_id = None
-    link_username = links[-1]
+    link_username = links[-1] if links else ''
     for link in links:
         link_id = resolve_username(db, link)
         if link_id:
             link_username = link
             break
 
-    db[user_id].update_data(user.username, link_username, link_id)
+    if link_username.lower() == username.lower():
+        link_username = 'self'
+        link_id = None
+
+    db[user_id].update_data(username, link_username, link_id)
 
     # if no links, watch this person
     if not link_id and user_id != '51863899':
-        print(f'{user.username} has no valid links!')
+        print(f'{username} has no valid links!')
         db[user_id].reset_expiry(10)
     else:
         db[user_id].reset_expiry(60)
@@ -204,8 +206,13 @@ def rebuild_chain(db):
     best_chain = []
     for head_id, head in db.items():
         this_chain = [head_id]
+        visited = set()
         while this_chain[-1] in db:
-            this_chain.append(db[this_chain[-1]].link_id)
+            visited.add(this_chain[-1])
+            next_id = db[this_chain[-1]].link_id
+            if next_id in visited:
+                break
+            this_chain.append(next_id)
 
         if len(this_chain) > best_length:
             best_chain = this_chain
@@ -282,11 +289,15 @@ def main():
                 next_update_id = update.update_id + 1
 
             # handle users that changed
+            db_needs_save = False
             for user_id, user in db.items():
                 if user.has_changed:
                     verify_user(bot, db, user_id)
                     user.has_changed = False
-                    save_db(db)
+                    db_needs_save = True
+            
+            if db_needs_save:
+                save_db(db)
 
             # rebuild the chain and send it if it's different from the previous one
             this_chain = rebuild_chain(db)
