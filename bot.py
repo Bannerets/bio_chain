@@ -5,29 +5,26 @@ import re
 import requests
 import json
 import html
+from collections import defaultdict
+from enum import Enum
 
 
 CHAT_ID = -1001113029151
-DB_FILENAME = 'users.json'
+LINKS_FILENAME = 'links.json'
+USERDB_FILENAME = 'users.json'
 LAST_CHAIN_FILENAME = 'last_chain.txt'
 LAST_PIN_FILENAME = 'last_pin.txt'
-r_scrape_bio = re.compile(r'<meta +property="og:description" +content="(.+?)".*>')
-r_username = re.compile(r'@([a-zA-Z][\w\d]{4,31})')
+re_scrape_bio = re.compile(r'<meta +property="og:description" +content="(.+?)".*>')
+re_username = re.compile(r'@([a-zA-Z][\w\d]{4,31})')
 
 
 class User(object):
     """
-    State machine for each user that keeps track if the username/link_username has changed
+    Keeps track if each user's username and if the username needs to be fetched again
     """
-    def __init__(self, user_id, data=None):
-        self.id = user_id
+    def __init__(self, username):
         self.expires = 0
-        self.has_changed = False
-
-        data = data if data else {}
-        self.username = data.get('username', '')
-        self.link_id = data.get('link_id', '0')
-        self.link_username = data.get('link_username', '')
+        self.username = username
 
     def is_expired(self):
         return time.time() > self.expires
@@ -35,206 +32,227 @@ class User(object):
     def reset_expiry(self, seconds=60):
         self.expires = time.time() + seconds
 
-    def update_data(self, username, link_username, link_id):
-        username = username if username else ''
-        link_username = link_username if link_username else ''
-        # allows detection of changing to an invalid link:
-        # since this results from being unable to resolve link_username,
-        # this is the previous link_id
-        link_id = link_id if link_id else self.link_id
+    def update_username(self, username, reset=True):
+        """Updates the username associated with this user, returns True if the username has changed"""
+        if username is None:
+            return False
 
+        if reset:
+            self.reset_expiry(60)
         if username.lower() != self.username.lower():
-            self.has_changed = True
-            print(f'{self.username} -> {username}')
-        if link_username.lower() != self.link_username.lower():
-            self.has_changed = True
-            print(f'{self.username} link: {self.link_username} -> {link_username}')
-        if link_id != self.link_id:
-            self.has_changed = True
-            print(f'{self.username} link_id: {self.link_id} -> {link_id}')
-
-        self.username = username
-        self.link_username = link_username
-        self.link_id = link_id
+            if self.username:
+                print(f'{self.username} -> {username}')
+            self.username = username
+            return True
+        return False
 
 
-def save_db(db):
-    """Dumps the most important data to DB_FILENAME as JSON"""
-    db_dict = {}
-
-    for user_id, user in db.items():
-        db_dict[user_id] = {
-            'username': user.username,
-            'link_id': user.link_id,
-            'link_username': user.link_username
-        }
-
-    with open(DB_FILENAME, 'w') as f:
-        json.dump(db_dict, f)
-
-
-def get_bio(username):
-    """Scrapes the bio from t.me/username"""
-    r = requests.get(f'http://t.me/{username}')
-    if not r.ok:
-        print(f"Request for @{username}'s bio failed")
-        return ''
-
-    bio = r_scrape_bio.findall(r.text)
-    return html.unescape(bio[0]) if bio else ''
-
-
-def resolve_username(db, username):
+class State(Enum):
     """
-    Attemps to get the ID for the given username by checking in the db.
+    State of a link:
+    Old: The link has existed in the past but does not exist right now
+    Empty: There's no link here
+    Current: The link exists right now
+    """
+    Old = -1
+    Empty = 0
+    Current = 1
+
+
+
+
+def load_links(link_matrix):
+    """Updates link_matrix in place with the entries from LINKS_FILENAME"""
+    with open(LINKS_FILENAME) as f:
+        data = json.load(f)
+
+    for user_id, links in data.items():
+        for link in links:
+            link_matrix[user_id][link] = State.Old
+
+
+def save_links(link_matrix):
+    """Dumps link_matrix to LINKS_FILENAME"""
+    out = {}
+
+    for user_id, links in link_matrix.items():
+        out[user_id] = []
+        for link in links:
+            if link is not State.Empty:
+                out[user_id].append(link)
+
+    with open(LINKS_FILENAME, 'w') as f:
+        json.dump(out, f)
+
+
+def print_matrix(link_matrix):
+    """Prints link_matrix in a grid"""
+    print(' ' * 13, end='')
+    i = 0
+    for key in link_matrix:
+        print('{0: >2} '.format(chr(i + 65)), end='')
+        i += 1
+    print()
+
+
+    i = 0
+    for basekey in link_matrix:
+        print('{} {}'.format(chr(i + 65), basekey).ljust(12) + ':', end='')
+        for key in link_matrix:
+            print('{0: >2} '.format(link_matrix[basekey][key].value), end='')
+        print()
+        i += 1
+
+
+
+
+def load_userdb(userdb):
+    """Updates user database with data from USERDB_FILENAME"""
+    with open(USERDB_FILENAME) as f:
+        data = json.load(f)
+
+    for user_id, username in data.items():
+        userdb[user_id].update_username(username, reset=False)
+
+
+def save_userdb(data):
+    """Dumps the user database to USERDB_FILENAME as JSON"""
+    out = {user_id: user.username for user_id, user in data.items()}
+
+    with open(USERDB_FILENAME, 'w') as f:
+        json.dump(out, f)
+
+
+
+
+def get_id_from_username(userdb, username):
+    """
+    Attemps to get the ID for the given username by checking in the userdb.
     Returns the id of the user (may be None if not found).
     """
-    for this_id, this_user in db.items():
+    for this_id, this_user in userdb.items():
         if username.lower() == this_user.username.lower():
             return this_id
 
 
+def get_link_ids_from_bio(userdb, username):
+    """
+    Scrapes the bio from t.me/username
+    Returns a list of user_ids of all valid links to users that we know
+    """
+    if not username: return []
 
-def update_user(bot, db, user_id):
-    """gets new data for a user and updates the db"""
-    user_id = str(user_id)
+    r = requests.get(f'http://t.me/{username}')
+    if not r.ok:
+        print(f"Request for @{username}'s bio failed")
+        return []
 
-    # get the user so we have an up-to-date username for this id
-    username = resolve_username(db, user_id)
+    bio = re_scrape_bio.findall(r.text)
+    if not bio:
+        return []
+    bio = html.unescape(bio[0])
+    link_names = re_username.findall(bio)
+    
+    link_ids = []
+    for link_name in link_names:
+        link_id = get_id_from_username(userdb, link_name)
+        if link_id:
+            link_ids.append(link_id)
+
+    return link_ids
+
+
+def get_username(bot, user_id):
+    """Returns the username of the user_is, may return None if the user has never contacted the bot"""
     try:
         chat = bot.getChat(user_id)
-        if hasattr(chat, 'username'):
-            username = chat.username
+        return chat.username if hasattr(chat, 'username') else ''
     except Exception as e:
-        print('I dont know who this user is:', user_id, e)
+        print(f'I don\'t know who {user_id} is:', e)
 
-    if user_id not in db:
-        db[user_id] = User(user_id)
-        print(f'added {user_id} to the db')
-
-    # if no username, watch this person
-    if not username:
-        db[user_id].reset_expiry(10)
-        print(f'{user_id} has no username!')
-        return
-
-    # find first valid (in the db) username link
-    links = r_username.findall(get_bio(username))
-    link_id = None
-    link_username = links[-1] if links else ''
-    for link in links:
-        link_id = resolve_username(db, link)
-        if link_id:
-            link_username = link
-            break
-
-    if link_username.lower() == username.lower():
-        link_username = 'self'
-        link_id = None
-
-    db[user_id].update_data(username, link_username, link_id)
-
-    # if no links, watch this person
-    if not link_id and user_id != '51863899':
-        print(f'{username} has no valid links!')
-        db[user_id].reset_expiry(10)
-    else:
-        db[user_id].reset_expiry(60)
+    return None
 
 
-def get_update_user_ids(update):
-    """Returns the user IDs associated with an update in the chat"""
-    ids = []
-    if update.message and update.message.chat.id == CHAT_ID:
-        for user in update.message.new_chat_members:
-            if not user.is_bot:
-                ids.append(user.id)
-        user = update.message.from_user
-        if not user.is_bot:
-            ids.append(user.id)
 
-    return ids
 
-def send_message(bot, text):
-    print('out:', text)
-    return bot.sendMessage(
-        chat_id=CHAT_ID,
-        text=text,
-        parse_mode='Markdown',
-    )
+def find_longest_chain(link_matrix):
+    """Returns the longest possible chain from link_matrix"""
+    longest_chain = []
+    pending_chains = []
 
-def verify_user(bot, db, trigger_id):
-    trigger = db[trigger_id]
-    linker_ids = []
+    # add every possible head to pending_chains
+    for head_id in link_matrix:
+        pending_chains.append([head_id])
 
-    # find everyone who links to the trigger by id
-    for user_id, user in db.items():
-        if user.link_id == trigger_id:
-            linker_ids.append(user_id)
+    while pending_chains:
+        # grab a chain from the stack
+        this_chain = pending_chains.pop()
+        last_link = this_chain[-1]
 
-    # verify that everyone who points to the
-    # trigger points to the currect username
-    for linker_id in linker_ids:
-        if db[linker_id].link_username.lower() != trigger.username.lower():
-            message = '@{} has changed their username to {}, @{} needs to update their bio.'.format(
-                db[linker_id].link_username,
-                '@'+trigger.username if trigger.username else 'nothing',
-                db[linker_id].username
-            )
+        # if the last_link doesn't have any links then this will remain True
+        is_end = True
 
-            send_message(bot, message)
+        # iterate through all the links that the last_link in this_chain links to
+        for next_link in link_matrix[last_link]:
+            # if next_link is valid and we have not visted it before
+            if link_matrix[last_link][next_link] is not State.Empty and next_link not in this_chain:
+                # last_link is not the end of a chain
+                is_end = False
 
-    # verify that trigger links to a valid username (only if they previously had a valid link!)
-    # if not, then inform them and whoever links to them
-    if trigger.link_id in db and \
-            db[trigger.link_id].username.lower() != trigger.link_username.lower():
-        message = '@{} has an invalid link to {} (previously: @{})'.format(
-            trigger.username,
-            '@'+trigger.link_username if trigger.link_username else 'no one',
-            db[trigger.link_id].username
-        )
-        for linker_id in linker_ids:
-            message += '\n@{} points to @{} and should update their bio because of this!\n'.format(
-                db[linker_id].username,
-                trigger.username
-            )
-        send_message(bot, message)
+                # add [this_chain + next_link] to pending_chains
+                new_chain = this_chain[:]
+                new_chain.append(next_link)
+                pending_chains.append(new_chain)
 
-def rebuild_chain(db):
-    # find the head that results in the longest chain
-    best_length = 0
-    best_chain = []
-    for head_id, head in db.items():
-        this_chain = [head_id]
-        visited = set()
-        while this_chain[-1] in db:
-            visited.add(this_chain[-1])
-            next_id = db[this_chain[-1]].link_id
-            if next_id in visited:
-                break
-            this_chain.append(next_id)
+        # if last_link is the end, then test if this is the longest chain
+        if is_end and len(this_chain) > len(longest_chain):
+                longest_chain = this_chain
 
-        if len(this_chain) > best_length:
-            best_chain = this_chain
-            best_length = len(this_chain)
+    return longest_chain
 
-    # make a string from the chain list
-    chain_output = '```\nChain length: {}\n\n'.format(len(best_chain)-1)
-    for user_id in best_chain:
-        chain_output += f'@{db[user_id].username}'
-        link_id = db[user_id].link_id
 
-        if link_id not in db:
-            break
+def get_links_to(link_matrix, user_id):
+    """Returns a list of user_ids that currently link to user_id"""
+    return [link_id for link_id in link_matrix if link_matrix[link_id][user_id] is State.Current]
 
-        if db[user_id].link_username.lower() == db[link_id].username.lower():
-            chain_output += ' → '
+
+def verify_chain(chain, link_matrix, userdb):
+    """
+    Converts the chain into a printable string and verifies that all the links are valid
+    Returns a tuple: the chain as a string, a list of any announcements that need to be made, True if all the links are valid
+    """
+    announcements = []
+    chain_str = '```\nChain length: {}\n\n'.format(len(chain))
+
+    all_valid = True
+    for i in range(1, len(chain)):
+        this_id, next_id = chain[i-1], chain[i]
+        chain_str += f'@{userdb[this_id].username}'
+        if link_matrix[this_id][next_id] is State.Current:
+            chain_str += ' → '
         else:
-            chain_output += ' ↛ '
+            all_valid = False
+            chain_str += ' ❌ '
+            announcements.append(f'@{userdb[this_id].username} has no valid links (should be @{userdb[next_id].username})!')
+            for link_id in get_links_to(link_matrix, this_id):
+                announcements.append(f'@{userdb[link_id].username} should update their bio because of this!')
 
-    return chain_output + '```'
+    chain_str += f'@{userdb[chain[-1]].username}```'
 
-def send_chain(bot, chain_text):
+    return chain_str, announcements, all_valid
+
+
+def update_chain(bot, chain_text):
+    """
+    Tries to post chain_text (editing the last message if possible)
+    Returns True if chain_text was sent, False if not
+    """
+    # get last chain
+    with open(LAST_CHAIN_FILENAME) as f:
+        last_chain = f.read()
+    if last_chain == chain_text:
+        return False
+
     # get last message
     with open(LAST_PIN_FILENAME) as f:
         last_pin_id = f.read()
@@ -260,54 +278,106 @@ def send_chain(bot, chain_text):
         with open(LAST_CHAIN_FILENAME, 'w') as f:
             f.write(chain_text)
 
+    return True
+
+
+
+
+def send_message(bot, text):
+    """Prints a message and then sends it via the bot to the chat"""
+    print('out:', text)
+    return bot.sendMessage(
+        chat_id=CHAT_ID,
+        text=text,
+        parse_mode='Markdown',
+    )
+
+
+def get_update_users(update):
+    """Yields the user IDs and usernames associated with an update in the chat"""
+    if update.message and update.message.chat.id == CHAT_ID:
+        for user in update.message.new_chat_members:
+            if not user.is_bot:
+                yield str(user.id), user.username if hasattr(user, 'username') else ''
+        user = update.message.from_user
+        if not user.is_bot:
+            yield str(user.id), user.username if hasattr(user, 'username') else ''
+
 
 def main():
-    with open(DB_FILENAME) as f:
-        db = json.load(f)
-    for user_id, data in db.items():
-        db[user_id] = User(user_id, data)
+    link_matrix = defaultdict(
+        lambda: defaultdict(
+            lambda: State.Empty
+        )
+    )
+    load_links(link_matrix)
 
-    with open(LAST_CHAIN_FILENAME) as f:
-        last_chain = f.read()
+    userdb = defaultdict(lambda: User(''))
+    load_userdb(userdb)
 
     bot = telegram.Bot(os.environ['tg_bot_biochain_token'])
+    next_update_id = -100
 
-    next_update_id = -1
     while 1:
         try:
-            # update expired users
-            for user_id, user in db.items():
-                if user.is_expired():
-                    update_user(bot, db, user_id)
-
-            # find updates from users that we don't know, and add them to the db
+            # update userdb from bot updates (adding users who aren't in the db)
+            # dont reset the expiry time of the users
+            print('Handling updates...')
+            has_changed = False
             updates = bot.getUpdates(offset=next_update_id)
             for update in updates:
-                for user_id in get_update_user_ids(update):
-                    if str(user_id) not in db:
-                        update_user(bot, db, user_id)
+                for user_id, username in get_update_users(update):
+                    if userdb[user_id].update_username(username, reset=False):
+                        has_changed = True
                 next_update_id = update.update_id + 1
 
-            # handle users that changed
-            db_needs_save = False
-            for user_id, user in db.items():
-                if user.has_changed:
-                    verify_user(bot, db, user_id)
-                    user.has_changed = False
-                    db_needs_save = True
-            
-            if db_needs_save:
-                save_db(db)
+            # update the usernames of the users who are marked as expired
+            print('Updating usernames...')
+            for user_id, user in userdb.items():
+                if user.is_expired():
+                    if user.update_username(get_username(bot, user_id)):
+                        has_changed = True
 
-            # rebuild the chain and send it if it's different from the previous one
-            this_chain = rebuild_chain(db)
-            if this_chain.lower() != last_chain.lower():
-                send_chain(bot, this_chain)
-                last_chain = this_chain
+            if has_changed:
+                print('Saving userdb...')
+                save_userdb(userdb)
 
-            time.sleep(1)
+            # Update the link_matrix of all users in the db based on their bios
+            print('Scraping bios...')
+            for user_id in userdb:
+                for link_id in get_link_ids_from_bio(userdb, userdb[user_id].username):
+                    link_matrix[user_id][link_id] = State.Current
+
+            #print_matrix(link_matrix)
+
+            # find the best chain and check if it passes through only real links
+            has_changed = False
+            new_chain, announcements, all_valid = verify_chain(find_longest_chain(link_matrix), link_matrix, userdb)
+            if update_chain(bot, new_chain):
+                print('Chain has been updated!')
+                has_changed = True
+                for announcement in announcements:
+                    send_message(bot, announcement)
+
+            # Get rid of old non-existent links if the chain passes through only real links
+            if all_valid:
+                print('Chain is in an optimal state! Purging old links...')
+                for linker_id in link_matrix:
+                    for link_id in link_matrix:
+                        if link_matrix[linker_id][link_id] is State.Old:
+                            link_matrix[linker_id][link_id] = State.Empty
+
+            if has_changed:
+                print('Saving link matrix...')
+                save_links(link_matrix)
+
+            time.sleep(60)
+
         except Exception as e:
-            print("Encountered exception while running main loop:", e)
+            print('Encountered exception while running main loop:', e)
+            raise e
+
+
 
 if __name__ == '__main__':
     main()
