@@ -75,13 +75,13 @@ def save_links(link_matrix):
     """Dumps link_matrix to LINKS_FILENAME"""
     out = {}
 
-    for user_id, links in link_matrix.items():
+    for user_id in link_matrix:
         out[user_id] = []
-        for link in links:
-            if link is not State.Empty:
-                out[user_id].append(link)
+        for link_id in link_matrix[user_id]:
+            if link_matrix[user_id][link_id] is not State.Empty:
+                out[user_id].append(link_id)
 
-    with open('aaa.json', 'w') as f:
+    with open(LINKS_FILENAME, 'w') as f:
         json.dump(out, f)
 
 
@@ -311,9 +311,6 @@ def main():
         )
     )
     load_links(link_matrix)
-    print_matrix(link_matrix)
-    save_links(link_matrix)
-    exit()
 
     userdb = defaultdict(lambda: User(''))
     load_userdb(userdb)
