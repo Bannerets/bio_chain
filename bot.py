@@ -81,7 +81,7 @@ def save_links(link_matrix):
             if link is not State.Empty:
                 out[user_id].append(link)
 
-    with open(LINKS_FILENAME, 'w') as f:
+    with open('aaa.json', 'w') as f:
         json.dump(out, f)
 
 
@@ -311,6 +311,9 @@ def main():
         )
     )
     load_links(link_matrix)
+    print_matrix(link_matrix)
+    save_links(link_matrix)
+    exit()
 
     userdb = defaultdict(lambda: User(''))
     load_userdb(userdb)
@@ -331,6 +334,8 @@ def main():
                         has_changed = True
                 next_update_id = update.update_id + 1
 
+
+
             # update the usernames of the users who are marked as expired
             print('Updating usernames...')
             for user_id, user in userdb.items():
@@ -342,34 +347,53 @@ def main():
                 print('Saving userdb...')
                 save_userdb(userdb)
 
+
+
             # Update the link_matrix of all users in the db based on their bios
             print('Scraping bios...')
             for user_id in userdb:
                 for link_id in get_link_ids_from_bio(userdb, userdb[user_id].username):
                     link_matrix[user_id][link_id] = State.Current
 
-            #print_matrix(link_matrix)
+
 
             # find the best chain and check if it passes through only real links
             has_changed = False
-            new_chain, announcements, all_valid = verify_chain(find_longest_chain(link_matrix), link_matrix, userdb)
-            if update_chain(bot, new_chain):
-                print('Chain has been updated!')
+            new_chain = find_longest_chain(link_matrix)
+            new_chain_str, announcements, all_valid = verify_chain(new_chain, link_matrix, userdb)
+            if update_chain(bot, new_chain_str):
+                print('Chain has been updated!' + (' and is now in an optimal state!' if all_valid else ''))
                 has_changed = True
                 for announcement in announcements:
                     send_message(bot, announcement)
 
+
+
             # Get rid of old non-existent links if the chain passes through only real links
             if all_valid:
-                print('Chain is in an optimal state! Purging old links...')
+                purge_count = 0
                 for linker_id in link_matrix:
                     for link_id in link_matrix:
                         if link_matrix[linker_id][link_id] is State.Old:
                             link_matrix[linker_id][link_id] = State.Empty
+                            purge_count += 1
+                if purge_count:
+                    print(f'Purged {purge_count} old links!')
 
-            if has_changed:
+            if has_changed or purge_count:
                 print('Saving link matrix...')
                 save_links(link_matrix)
+
+            # Get rid of users who do not appear in the chain
+            if all_valid:
+                purge_count = len(userdb)
+                new_chain = set(new_chain)
+                userdb = {user_id: user for user_id, user in userdb.items() if user_id in new_chain}
+                purge_count -= len(userdb)
+                if purge_count:
+                    print(f'Purged {purge_count} old users! Saving userdb...')
+                    save_userdb(userdb)
+
 
             time.sleep(60)
 
