@@ -222,7 +222,7 @@ def verify_chain(chain, link_matrix, userdb):
     Returns a tuple: the chain as a string, a list of any announcements that need to be made, True if all the links are valid
     """
     announcements = []
-    chain_str = '```\nChain length: {}\n\n'.format(len(chain))
+    chain_str = f'Chain length: {len(chain)}\n\n'
 
     all_valid = True
     for i in range(1, len(chain)):
@@ -237,7 +237,7 @@ def verify_chain(chain, link_matrix, userdb):
             for link_id in get_links_to(link_matrix, this_id):
                 announcements.append(f'@{userdb[link_id].username} should update their bio because of this!')
 
-    chain_str += f'@{userdb[chain[-1]].username}```'
+    chain_str += f'@{userdb[chain[-1]].username}'
 
     return chain_str, announcements, all_valid
 
@@ -262,18 +262,22 @@ def update_chain(bot, chain_text):
             chat_id=CHAT_ID,
             message_id=last_pin_id,
             text=chain_text,
-            parse_mode='Markdown'
         )
     except:
-        message = send_message(bot, chain_text)
+        message = send_message(bot, f'```\n{chain_text}```')
         if message:
+            with open(LAST_PIN_FILENAME, 'w') as f:
+                f.write(str(message.message_id))
             bot.pinChatMessage(
                 chat_id=CHAT_ID,
                 message_id=message.message_id,
                 disable_notification=True
             )
-            with open(LAST_PIN_FILENAME, 'w') as f:
-                f.write(str(message.message_id))
+            bot.editMessageText(
+                chat_id=CHAT_ID,
+                message_id=message.message_id,
+                text=chain_text
+            )
     finally:
         with open(LAST_CHAIN_FILENAME, 'w') as f:
             f.write(chain_text)
@@ -396,7 +400,7 @@ def main():
 
         except Exception as e:
             print('Encountered exception while running main loop:', e)
-            raise e
+            #raise e
 
 
 
