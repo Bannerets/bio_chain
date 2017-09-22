@@ -40,8 +40,7 @@ class User(object):
         if reset:
             self.reset_expiry(60)
         if username.lower() != self.username.lower():
-            if self.username:
-                print(f'{self.username} -> {username}')
+            print(f'{self.username} -> {username}')
             self.username = username
             return True
         return False
@@ -73,10 +72,9 @@ def load_links(link_matrix):
 
 def save_links(link_matrix):
     """Dumps link_matrix to LINKS_FILENAME"""
-    out = {}
+    out = defaultdict(list)
 
     for user_id in link_matrix:
-        out[user_id] = []
         for link_id in link_matrix[user_id]:
             if link_matrix[user_id][link_id] is not State.Empty:
                 out[user_id].append(link_id)
@@ -127,7 +125,7 @@ def save_userdb(data):
 
 def get_id_from_username(userdb, username):
     """
-    Attemps to get the ID for the given username by checking in the userdb.
+    Attempts to get the ID for the given username by checking in the userdb.
     Returns the id of the user (may be None if not found).
     """
     for this_id, this_user in userdb.items():
@@ -172,12 +170,33 @@ def get_username(bot, user_id):
 
     return None
 
+def is_userid_in_group(bot, user_id):
+    try:
+        member = bot.getChatMember(CHAT_ID, user_id)
+        if member:
+            return True
+    except Exception as e:
+        if 'User_id_invalid' in e.message:
+            print(f'{user_id} is not in the group!')
+            return False
+    return True
 
 
 
-def find_longest_chain(link_matrix):
-    """Returns the longest possible chain from link_matrix"""
+def is_chain_valid(chain, link_matrix):
+    """Returns True if all the links in the chain are valid"""
+    for i in range(1, len(chain)):
+        this_id, next_id = chain[i-1], chain[i]
+        if link_matrix[this_id][next_id] is not State.Current:
+            return False
+
+    return True
+
+
+def find_best_chain(link_matrix):
+    """Returns a tuple: the longest possible chain from link_matrix, whether the returned chain is valid or not"""
     longest_chain = []
+    longest_valid_chain = []
     pending_chains = []
 
     # add every possible head to pending_chains
@@ -194,7 +213,7 @@ def find_longest_chain(link_matrix):
 
         # iterate through all the links that the last_link in this_chain links to
         for next_link in link_matrix[last_link]:
-            # if next_link is valid and we have not visted it before
+            # if next_link is valid and we have not visited it before
             if link_matrix[last_link][next_link] is not State.Empty and next_link not in this_chain:
                 # last_link is not the end of a chain
                 is_end = False
@@ -205,10 +224,13 @@ def find_longest_chain(link_matrix):
                 pending_chains.append(new_chain)
 
         # if last_link is the end, then test if this is the longest chain
-        if is_end and len(this_chain) > len(longest_chain):
+        if is_end:
+            if len(this_chain) > len(longest_chain):
                 longest_chain = this_chain
+            if is_chain_valid(this_chain, link_matrix) and len(this_chain) > len(longest_valid_chain):
+                longest_valid_chain = this_chain
 
-    return longest_chain
+    return longest_valid_chain or longest_chain, bool(longest_valid_chain)
 
 
 def get_links_to(link_matrix, user_id):
@@ -216,30 +238,32 @@ def get_links_to(link_matrix, user_id):
     return [link_id for link_id in link_matrix if link_matrix[link_id][user_id] is State.Current]
 
 
-def verify_chain(chain, link_matrix, userdb):
-    """
-    Converts the chain into a printable string and verifies that all the links are valid
-    Returns a tuple: the chain as a string, a list of any announcements that need to be made, True if all the links are valid
-    """
-    announcements = []
+def stringify_chain(chain, link_matrix, userdb):
+    """Converts a chain into a string"""
     chain_str = f'Chain length: {len(chain)}\n\n'
-
-    all_valid = True
+    
     for i in range(1, len(chain)):
         this_id, next_id = chain[i-1], chain[i]
         chain_str += f'@{userdb[this_id].username}'
-        if link_matrix[this_id][next_id] is State.Current:
-            chain_str += ' → '
-        else:
-            all_valid = False
-            chain_str += ' ❌ '
+        chain_str += ' → ' if link_matrix[this_id][next_id] is State.Current else ' ❌ '
+
+    chain_str += f'@{userdb[chain[-1]].username}'
+
+    return chain_str
+
+
+def get_chain_announcements(chain, link_matrix, userdb):
+    """Returns a list of any announcements that need to be made because of broken links in a chain"""
+    announcements = []
+
+    for i in range(1, len(chain)):
+        this_id, next_id = chain[i-1], chain[i]
+        if link_matrix[this_id][next_id] is not State.Current:
             announcements.append(f'@{userdb[this_id].username} has no valid links (should be @{userdb[next_id].username})!')
             for link_id in get_links_to(link_matrix, this_id):
                 announcements.append(f'@{userdb[link_id].username} should update their bio because of this!')
 
-    chain_str += f'@{userdb[chain[-1]].username}'
-
-    return chain_str, announcements, all_valid
+    return announcements
 
 
 def update_chain(bot, chain_text):
@@ -302,6 +326,7 @@ def get_update_users(update):
     if update.message and update.message.chat.id == CHAT_ID:
         for user in update.message.new_chat_members:
             if not user.is_bot:
+                print(update)
                 yield str(user.id), user.username if hasattr(user, 'username') else ''
         user = update.message.from_user
         if not user.is_bot:
@@ -322,10 +347,11 @@ def main():
     bot = telegram.Bot(os.environ['tg_bot_biochain_token'])
     next_update_id = -100
 
+
     while 1:
         try:
             # update userdb from bot updates (adding users who aren't in the db)
-            # dont reset the expiry time of the users
+            # don't reset the expiry time of the users
             print('Handling updates...')
             has_changed = False
             updates = bot.getUpdates(offset=next_update_id)
@@ -333,7 +359,7 @@ def main():
                 for user_id, username in get_update_users(update):
                     if userdb[user_id].update_username(username, reset=False):
                         has_changed = True
-                next_update_id = update.update_id + 1
+                #next_update_id = update.update_id + 1
 
 
 
@@ -360,12 +386,12 @@ def main():
 
             # find the best chain and check if it passes through only real links
             has_changed = False
-            new_chain = find_longest_chain(link_matrix)
-            new_chain_str, announcements, all_valid = verify_chain(new_chain, link_matrix, userdb)
+            new_chain, all_valid = find_best_chain(link_matrix)
+            new_chain_str = stringify_chain(new_chain, link_matrix, userdb)
             if update_chain(bot, new_chain_str):
                 print('Chain has been updated!' + (' and is now in an optimal state!' if all_valid else ''))
                 has_changed = True
-                for announcement in announcements:
+                for announcement in get_chain_announcements(new_chain, link_matrix, userdb):
                     send_message(bot, announcement)
 
 
@@ -385,14 +411,19 @@ def main():
                 print('Saving link matrix...')
                 save_links(link_matrix)
 
-            # Get rid of users who do not appear in the chain
+            # Get rid of users who are not in the group
             if all_valid:
-                purge_count = len(userdb)
+                print('Purging users who aren\'t in the group...')
                 new_chain = set(new_chain)
-                userdb = {user_id: user for user_id, user in userdb.items() if user_id in new_chain}
-                purge_count -= len(userdb)
+                new_db = defaultdict(lambda: User(''))
+                for user_id in userdb:
+                    if user_id in new_chain or is_userid_in_group(bot, user_id):
+                        new_db[user_id] = userdb[user_id]
+
+                purge_count = len(userdb) - len(new_db)
                 if purge_count:
-                    print(f'Purged {purge_count} old users! Saving userdb...')
+                    userdb = new_db
+                    print(f'Purged {purge_count} non-group members(s)! Saving userdb...')
                     save_userdb(userdb)
 
 
@@ -400,7 +431,7 @@ def main():
 
         except Exception as e:
             print('Encountered exception while running main loop:', e)
-            #raise e
+            raise e
 
 
 
