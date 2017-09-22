@@ -183,6 +183,7 @@ def is_userid_in_group(bot, user_id):
 
 
 
+
 def is_chain_valid(chain, link_matrix):
     """Returns True if all the links in the chain are valid"""
     for i in range(1, len(chain)):
@@ -277,31 +278,34 @@ def update_chain(bot, chain_text):
     if last_chain == chain_text:
         return False
 
-    # get last message
+    # get last message that we sent
     with open(LAST_PIN_FILENAME) as f:
         last_pin_id = f.read()
 
     try:
-        bot.editMessageText(
+        # try to edit our last pinned message
+        message = bot.editMessageText(
             chat_id=CHAT_ID,
             message_id=last_pin_id,
-            text=chain_text,
-        )
+            text=chain_text
+        )  
     except:
+        # can't edit? send a new one (in monospace to prevent notifications)
         message = send_message(bot, f'```\n{chain_text}```')
         if message:
-            with open(LAST_PIN_FILENAME, 'w') as f:
-                f.write(str(message.message_id))
-            bot.pinChatMessage(
-                chat_id=CHAT_ID,
-                message_id=message.message_id,
-                disable_notification=True
-            )
             bot.editMessageText(
                 chat_id=CHAT_ID,
                 message_id=message.message_id,
                 text=chain_text
             )
+            bot.pinChatMessage(
+                chat_id=CHAT_ID,
+                message_id=message.message_id,
+                disable_notification=True
+            )
+
+            with open(LAST_PIN_FILENAME, 'w') as f:
+                f.write(str(message.message_id))
     finally:
         with open(LAST_CHAIN_FILENAME, 'w') as f:
             f.write(chain_text)
@@ -410,6 +414,9 @@ def main():
                 print('Saving link matrix...')
                 save_links(link_matrix)
 
+
+
+
             # Get rid of users who are not in the group
             if all_valid:
                 new_chain = set(new_chain)
@@ -425,12 +432,11 @@ def main():
                     save_userdb(userdb)
 
 
-            time.sleep(60)
 
+            time.sleep(60)
         except Exception as e:
             print('Encountered exception while running main loop:', e)
             raise e
-
 
 
 if __name__ == '__main__':
