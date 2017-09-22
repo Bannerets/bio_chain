@@ -326,7 +326,6 @@ def get_update_users(update):
     if update.message and update.message.chat.id == CHAT_ID:
         for user in update.message.new_chat_members:
             if not user.is_bot:
-                print(update)
                 yield str(user.id), user.username if hasattr(user, 'username') else ''
         user = update.message.from_user
         if not user.is_bot:
@@ -413,7 +412,6 @@ def main():
 
             # Get rid of users who are not in the group
             if all_valid:
-                print('Purging users who aren\'t in the group...')
                 new_chain = set(new_chain)
                 new_db = defaultdict(lambda: User(''))
                 for user_id in userdb:
