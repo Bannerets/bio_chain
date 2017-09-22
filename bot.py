@@ -83,20 +83,26 @@ def save_links(link_matrix):
         json.dump(out, f)
 
 
-def print_matrix(link_matrix):
+def print_matrix(link_matrix, userdb):
     """Prints link_matrix in a grid"""
-    print(' ' * 13, end='')
+    padding = 0
+    for user_id, user in userdb.items():
+        if len(user.username) > padding:
+            padding = len(user.username)
+    padding += 2
+
+    print(' ' * (padding+1), end='')
     i = 0
-    for key in link_matrix:
+    for key in userdb:
         print('{0: >2} '.format(chr(i + 65)), end='')
         i += 1
     print()
 
 
     i = 0
-    for basekey in link_matrix:
-        print('{} {}'.format(chr(i + 65), basekey).ljust(12) + ':', end='')
-        for key in link_matrix:
+    for basekey in userdb:
+        print('{} {}'.format(chr(i + 65), userdb[basekey].username).ljust(padding) + ':', end='')
+        for key in userdb:
             print('{0: >2} '.format(link_matrix[basekey][key].value), end='')
         print()
         i += 1
@@ -128,6 +134,9 @@ def get_id_from_username(userdb, username):
     Attempts to get the ID for the given username by checking in the userdb.
     Returns the id of the user (may be None if not found).
     """
+    if username.lower() == 'bio_chain':
+        return "BIO_CHAIN"
+
     for this_id, this_user in userdb.items():
         if username.lower() == this_user.username.lower():
             return this_id
@@ -138,7 +147,7 @@ def get_link_ids_from_bio(userdb, username):
     Scrapes the bio from t.me/username
     Returns a list of user_ids of all valid links to users that we know
     """
-    if not username: return []
+    if not username or username.lower() == 'bio_chain': return []
 
     r = requests.get(f'http://t.me/{username}')
     if not r.ok:
@@ -161,6 +170,9 @@ def get_link_ids_from_bio(userdb, username):
 
 
 def get_username(bot, user_id):
+    if user_id == 'BIO_CHAIN':
+        return 'bio_chain'
+
     """Returns the username of the user_is, may return None if the user has never contacted the bot"""
     try:
         chat = bot.getChat(user_id)
@@ -194,10 +206,15 @@ def is_chain_valid(chain, link_matrix):
     return True
 
 
-def find_best_chain(link_matrix):
-    """Returns a tuple: the longest possible chain from link_matrix, whether the returned chain is valid or not"""
+def find_best_chain(link_matrix, userdb):
+    """
+    Returns a tuple:
+    [0] = the best possible chain from link_matrix
+    [1] = the longest possible chain
+    [2] = True if the best chain is valid
+    """
     longest_chain = []
-    longest_valid_chain = []
+    best_chain = []
     pending_chains = []
 
     # add every possible head to pending_chains
@@ -209,29 +226,23 @@ def find_best_chain(link_matrix):
         this_chain = pending_chains.pop()
         last_link = this_chain[-1]
 
-        # if the last_link doesn't have any links then this will remain True
-        is_end = True
-
         # iterate through all the links that the last_link in this_chain links to
         for next_link in link_matrix[last_link]:
             # if next_link is valid and we have not visited it before
             if link_matrix[last_link][next_link] is not State.Empty and next_link not in this_chain:
-                # last_link is not the end of a chain
-                is_end = False
-
                 # add [this_chain + next_link] to pending_chains
                 new_chain = this_chain[:]
                 new_chain.append(next_link)
                 pending_chains.append(new_chain)
 
-        # if last_link is the end, then test if this is the longest chain
-        if is_end:
+        # if last_link is the end, then test if this is the longest/best chain
+        if last_link == 'BIO_CHAIN':
             if len(this_chain) > len(longest_chain):
                 longest_chain = this_chain
-            if is_chain_valid(this_chain, link_matrix) and len(this_chain) > len(longest_valid_chain):
-                longest_valid_chain = this_chain
+            if is_chain_valid(this_chain, link_matrix) and len(this_chain) > len(best_chain):
+                best_chain = this_chain
 
-    return longest_valid_chain or longest_chain, bool(longest_valid_chain)
+    return best_chain or longest_chain, longest_chain, bool(best_chain)
 
 
 def get_links_to(link_matrix, user_id):
@@ -241,6 +252,7 @@ def get_links_to(link_matrix, user_id):
 
 def stringify_chain(chain, link_matrix, userdb):
     """Converts a chain into a string"""
+    chain = chain[:-1]
     chain_str = f'Chain length: {len(chain)}\n\n'
     
     for i in range(1, len(chain)):
@@ -350,7 +362,6 @@ def main():
     bot = telegram.Bot(os.environ['tg_bot_biochain_token'])
     next_update_id = -100
 
-
     while 1:
         try:
             # update userdb from bot updates (adding users who aren't in the db)
@@ -386,15 +397,17 @@ def main():
                     link_matrix[user_id][link_id] = State.Current
 
 
+            #print_matrix(link_matrix, userdb)
+
 
             # find the best chain and check if it passes through only real links
             has_changed = False
-            new_chain, all_valid = find_best_chain(link_matrix)
-            new_chain_str = stringify_chain(new_chain, link_matrix, userdb)
-            if update_chain(bot, new_chain_str):
+            best_chain, longest_chain, all_valid = find_best_chain(link_matrix, userdb)
+            best_chain_str = stringify_chain(best_chain, link_matrix, userdb)
+            if update_chain(bot, best_chain_str):
                 print('Chain has been updated!' + (' and is now in an optimal state!' if all_valid else ''))
                 has_changed = True
-                for announcement in get_chain_announcements(new_chain, link_matrix, userdb):
+                for announcement in get_chain_announcements(longest_chain, link_matrix, userdb):
                     send_message(bot, announcement)
 
 
@@ -419,10 +432,10 @@ def main():
 
             # Get rid of users who are not in the group
             if all_valid:
-                new_chain = set(new_chain)
+                best_chain = set(best_chain)
                 new_db = defaultdict(lambda: User(''))
                 for user_id in userdb:
-                    if user_id in new_chain or is_userid_in_group(bot, user_id):
+                    if user_id in best_chain or is_userid_in_group(bot, user_id):
                         new_db[user_id] = userdb[user_id]
 
                 purge_count = len(userdb) - len(new_db)
