@@ -60,6 +60,7 @@ class State(Enum):
 
 
 
+# link matrix
 def load_links(link_matrix):
     """Updates link_matrix in place with the entries from LINKS_FILENAME"""
     with open(LINKS_FILENAME) as f:
@@ -134,8 +135,6 @@ def get_id_from_username(userdb, username):
     Attempts to get the ID for the given username by checking in the userdb.
     Returns the id of the user (may be None if not found).
     """
-    if username.lower() == 'bio_chain':
-        return "BIO_CHAIN"
 
     for this_id, this_user in userdb.items():
         if username.lower() == this_user.username.lower():
@@ -147,7 +146,6 @@ def get_link_ids_from_bio(userdb, username):
     Scrapes the bio from t.me/username
     Returns a list of user_ids of all valid links to users that we know
     """
-    if not username or username.lower() == 'bio_chain': return []
 
     r = requests.get(f'http://t.me/{username}')
     if not r.ok:
@@ -170,9 +168,6 @@ def get_link_ids_from_bio(userdb, username):
 
 
 def get_username(bot, user_id):
-    if user_id == 'BIO_CHAIN':
-        return 'bio_chain'
-
     """Returns the username of the user_is, may return None if the user has never contacted the bot"""
     try:
         chat = bot.getChat(user_id)
@@ -205,16 +200,25 @@ def is_chain_valid(chain, link_matrix):
 
     return True
 
+def chain_count_valid(chain, link_matrix):
+    valid = 0
+    for i in range(1, len(chain)):
+        this_id, next_id = chain[i-1], chain[i]
+        if link_matrix[this_id][next_id] is State.Current:
+            valid += 1
+
+    return valid
+
 
 def find_best_chain(link_matrix, userdb):
     """
     Returns a tuple:
-    [0] = the best possible chain from link_matrix
-    [1] = the longest possible chain
-    [2] = True if the best chain is valid
+    [0] = the best possible chain (most valid links) from link_matrix
+    [2] = True if the longest chain is valid
     """
-    longest_chain = []
     best_chain = []
+    best_chain_valid = -1
+
     pending_chains = []
 
     # add every possible head to pending_chains
@@ -236,13 +240,14 @@ def find_best_chain(link_matrix, userdb):
                 pending_chains.append(new_chain)
 
         # if last_link is the end, then test if this is the longest/best chain
-        if last_link == 'BIO_CHAIN':
-            if len(this_chain) > len(longest_chain):
-                longest_chain = this_chain
-            if is_chain_valid(this_chain, link_matrix) and len(this_chain) > len(best_chain):
+        if last_link == '51863899':
+            this_valid = chain_count_valid(this_chain, link_matrix)
+            if this_valid > best_chain_valid:
+                best_chain_valid = this_valid
                 best_chain = this_chain
 
-    return best_chain or longest_chain, longest_chain, bool(best_chain)
+    print('', stringify_chain_short(best_chain, link_matrix, userdb))
+    return best_chain, is_chain_valid(best_chain, link_matrix)
 
 
 def get_links_to(link_matrix, user_id):
@@ -252,7 +257,6 @@ def get_links_to(link_matrix, user_id):
 
 def stringify_chain(chain, link_matrix, userdb):
     """Converts a chain into a string"""
-    chain = chain[:-1]
     chain_str = f'Chain length: {len(chain)}\n\n'
     
     for i in range(1, len(chain)):
@@ -265,6 +269,37 @@ def stringify_chain(chain, link_matrix, userdb):
     return chain_str
 
 
+def stringify_chain_short(chain, link_matrix, userdb):
+    """Converts a chain into a shorter debug string than stringify_chain"""
+    def short_name(name):
+        nonlocal names
+        end = 3
+        while name[:end] in names and end <= len(name):
+            end += 1
+        names.add(name[:end])
+        return name[:end]
+
+    chain_str = f'({len(chain)}) '
+    names = set()
+    
+    for i in range(1, len(chain)):
+        this_id, next_id = chain[i-1], chain[i]
+        chain_str += '@{}'.format(short_name(userdb[this_id].username))
+        chain_str += ' → ' if link_matrix[this_id][next_id] is State.Current else ' ❌ '
+
+    chain_str += '@{}'.format(short_name(userdb[chain[-1]].username))
+
+    return chain_str
+
+
+
+
+def user_has_valid_link(user_id, link_matrix):
+    for link_id in link_matrix[user_id]:
+        if link_matrix[user_id][link_id] is State.Current:
+            return True
+    return False
+
 def get_chain_announcements(chain, link_matrix, userdb):
     """Returns a list of any announcements that need to be made because of broken links in a chain"""
     announcements = []
@@ -272,9 +307,13 @@ def get_chain_announcements(chain, link_matrix, userdb):
     for i in range(1, len(chain)):
         this_id, next_id = chain[i-1], chain[i]
         if link_matrix[this_id][next_id] is not State.Current:
-            announcements.append(f'@{userdb[this_id].username} has no valid links (should be @{userdb[next_id].username})!')
+            announcements.append(f'@{userdb[this_id].username} has no valid links (should be `@{userdb[next_id].username}`)!')
             for link_id in get_links_to(link_matrix, this_id):
                 announcements.append(f'@{userdb[link_id].username} should update their bio because of this!')
+
+    for user_id in userdb:
+        if user_id not in chain and user_has_valid_link(user_id, link_matrix):
+            announcements.append(f'Suggestion: @{userdb[user_id].username} should link to `@{userdb[chain[0]].username}`!')
 
     return announcements
 
@@ -362,6 +401,7 @@ def main():
     bot = telegram.Bot(os.environ['tg_bot_biochain_token'])
     next_update_id = -100
 
+
     while 1:
         try:
             # update userdb from bot updates (adding users who aren't in the db)
@@ -402,19 +442,19 @@ def main():
 
             # find the best chain and check if it passes through only real links
             has_changed = False
-            best_chain, longest_chain, all_valid = find_best_chain(link_matrix, userdb)
+            best_chain, all_valid = find_best_chain(link_matrix, userdb)
             best_chain_str = stringify_chain(best_chain, link_matrix, userdb)
             if update_chain(bot, best_chain_str):
                 print('Chain has been updated!' + (' and is now in an optimal state!' if all_valid else ''))
                 has_changed = True
-                for announcement in get_chain_announcements(longest_chain, link_matrix, userdb):
+                for announcement in get_chain_announcements(best_chain, link_matrix, userdb):
                     send_message(bot, announcement)
 
 
 
             # Get rid of old non-existent links if the chain passes through only real links
+            purge_count = 0
             if all_valid:
-                purge_count = 0
                 for linker_id in link_matrix:
                     for link_id in link_matrix:
                         if link_matrix[linker_id][link_id] is State.Old:
