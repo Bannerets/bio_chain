@@ -39,6 +39,11 @@ def update_chain(bot, chain_text):
     with open(LAST_PIN_FILENAME) as f:
         last_pin_id = f.read()
 
+    if len(chain_text) >= 3000:
+        send_message(bot, '@KateWasTaken Warning: The chain is approaching message character limit ({:.1f}%)'.format(
+            len(chain_text) / 40.96
+        ))
+
     try:
         # try to edit our last pinned message
         message = bot.editMessageText(
