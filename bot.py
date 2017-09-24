@@ -154,8 +154,8 @@ def main():
 
             if update_chain(bot, best_chain_str):
                 print('Chain has been updated!' + (' and is now in an optimal state!' if best_is_valid else ''))
-            for announcement in chain.get_announcements(best_chain, chains, link_matrix, db):
-                send_message(bot, announcement)
+                for announcement in chain.get_announcements(best_chain, chains, link_matrix, db):
+                    send_message(bot, announcement)
 
 
             # disable users who are not reachable and not in the group
@@ -189,7 +189,6 @@ def main():
                     for link_id in link_matrix:
                         if link_matrix[user_id][link_id] is matrix.State.Old:
                             link_matrix[user_id][link_id] = matrix.State.Empty
-                            print(db[user_id]['username'], db[link_id]['username'])
                             change_count += 1
                 if change_count:
                     print(f'Purged {change_count} old links!')

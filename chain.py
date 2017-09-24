@@ -212,8 +212,7 @@ def get_announcements(best_chain, branches, link_matrix, db):
         is_sliced = len(branch) - i > BRANCH_SLICE
         announcements.append('@{} of branch `{}` should link to `@{}`'.format(
             db[merger]['username'],
-            #('... → ' if is_sliced else '') + stringify(branch[i:i+BRANCH_SLICE], link_matrix, db, False) + ' → ...',
-            stringify(branch[i:], link_matrix, db, False) + ' → ...',
+            ('... → ' if is_sliced else '') + stringify(branch[i:i+BRANCH_SLICE], link_matrix, db, False) + ' → ...',
             db[head]['username'],
         ))
 
