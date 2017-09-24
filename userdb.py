@@ -1,14 +1,9 @@
-import re
 import json
 import telegram
-import requests
-import html
 from collections import defaultdict
 import time
 
 USERDB_FILENAME = 'users.json'
-RE_SCRAPE_BIO = re.compile(r'<meta +property="og:description" +content="(.+?)".*>')
-RE_USERNAME = re.compile(r'@([a-zA-Z][\w\d]{4,31})')
 
 
 
@@ -68,39 +63,16 @@ def save(userdb):
 
 
 
-def username_to_id(userdb, username):
+def usernames_to_id(userdb, usernames):
     """
-    Attempts to get the ID for the given username by checking in the userdb.
-    Returns the id of the user (may be None if not found).
-    """
-
-    for this_id, this_user in userdb.items():
-        if username.lower() == this_user.username.lower():
-            return this_id
-
-
-
-def get_link_ids_from_bio(userdb, username):
-    """
-    Scrapes the bio from t.me/username
-    Returns a list of user_ids of all valid links to users that we know
+    Attempts to get the ID for the given usernames by checking in the userdb.
+    Returns the ids of the users.
     """
 
-    r = requests.get(f'http://t.me/{username}')
-    if not r.ok:
-        print(f"Request for @{username}'s bio failed")
-        return []
+    ids = []
+    for username in usernames:
+        for this_id, this_user in userdb.items():
+            if username.lower() == this_user.username.lower():
+                ids.append(this_id)
 
-    bio = RE_SCRAPE_BIO.findall(r.text)
-    if not bio:
-        return []
-    bio = html.unescape(bio[0])
-    link_names = RE_USERNAME.findall(bio)
-    
-    link_ids = []
-    for link_name in link_names:
-        link_id = username_to_id(userdb, link_name)
-        if link_id:
-            link_ids.append(link_id)
-
-    return link_ids
+    return ids

@@ -6,6 +6,7 @@ from collections import defaultdict
 import userdb
 import matrix
 import chain
+from util import *
 
 CHAT_ID = -1001113029151
 LAST_CHAIN_FILENAME = 'last_chain.txt'
@@ -76,18 +77,6 @@ def update_chain(bot, chain_text):
 
 
 
-def get_update_users(update):
-    """Yields the user IDs and usernames associated with an update in the chat"""
-    if update.message and update.message.chat.id == CHAT_ID:
-        for user in update.message.new_chat_members:
-            if not user.is_bot:
-                yield str(user.id), user.username if hasattr(user, 'username') else ''
-        user = update.message.from_user
-        if not user.is_bot:
-            yield str(user.id), user.username if hasattr(user, 'username') else ''
-
-
-
 def is_userid_in_group(bot, user_id):
     """Tests if a givedn user_id is in the group"""
     try:
@@ -111,6 +100,18 @@ def id_to_username(bot, user_id):
         print(f'I don\'t know who {user_id} is:', e)
 
     return None
+
+
+
+def get_update_users(update):
+    """Yields the user IDs and usernames associated with an update in the chat"""
+    if update.message and update.message.chat.id == CHAT_ID:
+        for user in update.message.new_chat_members:
+            if not user.is_bot:
+                yield str(user.id), user.username if hasattr(user, 'username') else ''
+        user = update.message.from_user
+        if not user.is_bot:
+            yield str(user.id), user.username if hasattr(user, 'username') else ''
 
 
 
@@ -153,7 +154,7 @@ def main():
             # Update the link_matrix of all users in the db based on their bios
             print('Scraping bios...')
             for user_id in users:
-                for link_id in userdb.get_link_ids_from_bio(users, users[user_id].username):
+                for link_id in userdb.usernames_to_id(users, scrape_bio_usernames(users[user_id].username)):
                     link_matrix[user_id][link_id] = matrix.State.Current
 
 
@@ -203,7 +204,6 @@ def main():
                     userdb.save(users)
 
 
-            exit()
             time.sleep(60)
         except Exception as e:
             print('Encountered exception while running main loop:', e)
