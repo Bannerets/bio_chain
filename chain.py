@@ -3,6 +3,7 @@ import math
 
 END_NODE = '51863899'
 BRANCH_SLICE = 5
+BULLET = '∙ '
 
 
 def is_valid(chain, link_matrix):
@@ -175,19 +176,19 @@ def get_announcements(best_chain, branches, link_matrix, db):
     for i in range(1, len(tmp_chain)):
         this_id, next_id = tmp_chain[i-1], tmp_chain[i]
         if link_matrix[next_id][this_id] is not matrix.State.Current:
-            announcements.append('@{} has no valid links (should be `@{}`)!'.format(
+            announcements.append(BULLET + '@{} has no valid links (should be `@{}`)!'.format(
                 db[this_id]['username'],
                 db[next_id]['username']
             ))
             for link_id in link_matrix[this_id]:
                 if link_matrix[this_id][link_id] is matrix.State.Current:
-                    announcements.append('@{} should update their bio because of this!'.format(
+                    announcements.append(BULLET + '@{} should update their bio because of this!'.format(
                         db[link_id]['username']
                     ))
 
         for link_id in matrix.get_links_to(link_matrix, this_id):
             if link_id != next_id:
-                announcements.append('@{} should remove their unnecessary link to `@{}`'.format(
+                announcements.append(BULLET + '@{} should remove their unnecessary link to `@{}`'.format(
                     db[this_id]['username'],
                     db[link_id]['username']
                 ))
@@ -201,7 +202,7 @@ def get_announcements(best_chain, branches, link_matrix, db):
             continue
 
         slice_count = len(branch) - i - BRANCH_SLICE
-        announcements.append('@{} of branch `{}` should link to `@{}`'.format(
+        announcements.append(BULLET + '@{} of branch `{}` should link to `@{}`'.format(
             db[merger]['username'],
             (f'[{slice_count} user(s)] → ' if slice_count > 0 else '') + stringify(branch[i:i+BRANCH_SLICE], link_matrix, db, False) + ' → [main chain]',
             db[head]['username'],

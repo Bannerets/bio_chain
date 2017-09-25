@@ -152,8 +152,9 @@ def main():
 
             if update_chain(bot, best_chain_str):
                 print('Chain has been updated!' + (' and is now in an optimal state!' if best_is_valid else ''))
-                for announcement in chain.get_announcements(best_chain, chains, link_matrix, db):
-                    send_message(bot, announcement)
+                send_message(bot, '\n'.join(
+                    chain.get_announcements(best_chain, chains, link_matrix, db)
+                ))
 
 
             # disable users who are not reachable and not in the group

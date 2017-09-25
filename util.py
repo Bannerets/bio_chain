@@ -38,6 +38,9 @@ def get_userids_from_bio(db, username):
 
 def send_message(bot, text):
     """Prints a message and then sends it via the bot to the chat"""
+    if not text:
+        return
+        
     print('out:', text)
     return bot.sendMessage(
         chat_id=CHAT_ID,
