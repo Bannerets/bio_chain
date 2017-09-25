@@ -111,7 +111,7 @@ def main():
                         print(f'Enabling previously disabled user: @{username} ({user_id})...')
                         db[user_id]['username'] = username
                         db[user_id]['disabled'] = False
-                #next_update_id = update.update_id + 1
+                next_update_id = update.update_id + 1
 
 
 
@@ -146,7 +146,6 @@ def main():
 
 
             print('Finding best chain...')
-
             # find the best chain and post it if it's different to our old one
             best_chain, chains, best_is_valid = chain.find_best(link_matrix, db)
             best_chain_str = chain.stringify(best_chain, link_matrix, db)
@@ -185,12 +184,20 @@ def main():
             change_count = 0
             if best_is_valid:
                 for user_id in link_matrix:
-                    for link_id in link_matrix:
+                    for link_id in link_matrix[user_id]:
                         if link_matrix[user_id][link_id] is matrix.State.Old:
                             link_matrix[user_id][link_id] = matrix.State.Empty
                             change_count += 1
                 if change_count:
                     print(f'Purged {change_count} old links!')
+
+
+            # Make all links old, so that changes can be caught
+            for user_id in link_matrix:
+                for link_id in link_matrix[user_id]:
+                    if link_matrix[user_id][link_id] is matrix.State.Current:
+                        link_matrix[user_id][link_id] = matrix.State.Old
+                        change_count += 1
 
 
 
@@ -201,7 +208,7 @@ def main():
             time.sleep(60)
         except Exception as e:
             print('Encountered exception while running main loop:', e)
-            raise e
+            #raise e
 
 if __name__ == '__main__':
     main()
