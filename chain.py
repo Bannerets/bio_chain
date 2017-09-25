@@ -128,8 +128,23 @@ def flood_fill(link_matrix):
 
 def stringify(chain, link_matrix, db, length=True):
     """Converts a chain into a string"""
+    non_broken = 0
+    for i in range(1, len(chain)):
+        this_id, next_id = chain[i-1], chain[i]
+        if link_matrix[this_id][next_id] is not matrix.State.Current:
+            break
+        non_broken += 1
+
+    chain_str = ''
+    if length:
+        chain_length = len(chain)
+        chain_str += f'Chain length: {chain_length}\n'
+        if non_broken != chain_length - 1:
+            chain_str += f'Length without breaks: {non_broken}\n\n'
+        else:
+            chain_str += '\n'
+
     chain = chain[::-1]
-    chain_str = f'Chain length: {len(chain)}\n\n' if length else ''
     
     for i in range(1, len(chain)):
         this_id, next_id = chain[i-1], chain[i]
