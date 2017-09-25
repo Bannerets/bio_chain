@@ -72,8 +72,9 @@ def find_best(link_matrix, db):
         for next_link in link_matrix[last_link]:
             # if next_link is valid and we have not visited it before
             if link_matrix[last_link][next_link] is not matrix.State.Empty and next_link not in this_chain:
-                # since we can reach a node this is not the end
-                is_end = False
+                # since we can reach a current node this is not the end
+                if link_matrix[last_link][next_link] is matrix.State.Current:
+                    is_end = False
                 # add [this_chain + next_link] to pending_chains
                 new_chain = this_chain[:]
                 new_chain.append(next_link)
@@ -89,7 +90,7 @@ def find_best(link_matrix, db):
     for index, this_chain in enumerate(found_chains):
         if index == best_index: continue
 
-        this_valid, this_broken = tally(found_chains[best_index], link_matrix)
+        this_valid, this_broken = tally(found_chains[index], link_matrix)
         best_valid, best_broken = tally(found_chains[best_index], link_matrix)
 
         if this_valid > best_valid or (this_valid == best_valid and this_broken < best_broken):
