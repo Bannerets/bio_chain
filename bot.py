@@ -30,7 +30,7 @@ def update_chain(bot, chain_text):
         last_pin_id = f.read()
 
     if len(chain_text) >= 3000:
-        send_message(bot, '@KateWasTaken Warning: The chain is approaching message character limit ({:.1%}%)'.format(
+        send_message(bot, '@KateWasTaken Warning: The chain is approaching message character limit ({:.1%})'.format(
             len(chain_text) / 4096
         ))
 
