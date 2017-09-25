@@ -145,8 +145,8 @@ def main():
 
 
 
-            print('Finding best chain...')
             # find the best chain and post it if it's different to our old one
+            print('Finding best chain...')
             best_chain, chains, best_is_valid = chain.find_best(link_matrix, db)
             best_chain_str = chain.stringify(best_chain, link_matrix, db)
 

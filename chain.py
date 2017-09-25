@@ -15,19 +15,8 @@ def is_valid(chain, link_matrix):
     return True
 
 
-
-def score(chain, link_matrix):
-    score = 0
-    for i in range(1, len(chain)):
-        this_id, next_id = chain[i-1], chain[i]
-        if link_matrix[this_id][next_id] is matrix.State.Current:
-            score += 1
-        elif link_matrix[this_id][next_id] is matrix.State.Old:
-            score -= 1
-
-    return score
-
 def tally(chain, link_matrix):
+    """Counts the number of broken and valid links in a chain"""
     current, broken = 0, 0
     for i in range(1, len(chain)):
         this_id, next_id = chain[i-1], chain[i]
@@ -93,6 +82,7 @@ def find_best(link_matrix, db):
         this_valid, this_broken = tally(found_chains[index], link_matrix)
         best_valid, best_broken = tally(found_chains[best_index], link_matrix)
 
+        # pick the one with the most valid links, and secondly by the least broken links
         if this_valid > best_valid or (this_valid == best_valid and this_broken < best_broken):
             best_index = index
         elif this_valid == best_valid and this_broken == best_broken:
@@ -210,10 +200,10 @@ def get_announcements(best_chain, branches, link_matrix, db):
         if merger in best_chain:
             continue
 
-        is_sliced = len(branch) - i > BRANCH_SLICE
+        slice_count = len(branch) - i - BRANCH_SLICE
         announcements.append('@{} of branch `{}` should link to `@{}`'.format(
             db[merger]['username'],
-            ('... → ' if is_sliced else '') + stringify(branch[i:i+BRANCH_SLICE], link_matrix, db, False) + ' → [main chain]',
+            (f'[{slice_count} user(s)] → ' if slice_count > 0 else '') + stringify(branch[i:i+BRANCH_SLICE], link_matrix, db, False) + ' → [main chain]',
             db[head]['username'],
         ))
 
