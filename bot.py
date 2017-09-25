@@ -2,6 +2,7 @@ import os
 import telegram
 import time
 import json
+from shutil import copyfile
 
 import matrix
 import chain
@@ -78,8 +79,11 @@ def get_update_users(update):
 
 
 def save_db(db):
-    """Dumps db to DATABASE_FILENAME"""
+    """Backs up the current file and then dumps db to DATABASE_FILENAME"""
     print('Saving db...')
+
+    copyfile(DATABASE_FILENAME, 'db{}.json'.format(int(time.time())))
+
     with open(DATABASE_FILENAME, 'w') as f:
         json.dump(db, f)
 
