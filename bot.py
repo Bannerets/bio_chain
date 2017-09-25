@@ -153,7 +153,6 @@ def main():
             print('Finding best chain...')
             best_chain, chains, best_is_valid = chain.find_best(link_matrix, db)
             best_chain_str = chain.stringify(best_chain, link_matrix, db)
-
             if update_chain(bot, best_chain_str):
                 print('Chain has been updated!' + (' and is now in an optimal state!' if best_is_valid else ''))
                 send_message(bot, '\n'.join(
