@@ -197,7 +197,8 @@ def get_announcements(best_chain, branches, link_matrix, db):
             ))
             for link_id in link_matrix[this_id]:
                 if link_matrix[this_id][link_id] is matrix.State.Current:
-                    announcements.append(BULLET + '@{} might want to update their bio because of this!'.format(
+                    announcements.append('    {}@{} might want to update their bio because of this!'.format(
+                        BULLET,
                         db[link_id]['username']
                     ))
 
@@ -213,7 +214,7 @@ def get_announcements(best_chain, branches, link_matrix, db):
     for branch in branches:
         branch_point, merger, i = find_merge_head(best_chain, branch)
 
-        if merger in best_chain:
+        if merger in best_chain or link_matrix[branch[i]][merger] is matrix.State.Old:
             continue
 
         slice_count = len(branch) - i - BRANCH_SLICE
