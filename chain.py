@@ -197,9 +197,9 @@ def get_announcements(best_chain, branches, link_matrix, db):
             ))
             for link_id in link_matrix[this_id]:
                 if link_matrix[this_id][link_id] is matrix.State.Current:
-                    announcements.append('    {}@{} might want to update their bio because of this!'.format(
-                        BULLET,
-                        db[link_id]['username']
+                    announcements.append('  - @{} might want to link to @{} because of this!'.format(
+                        db[link_id]['username'],
+                        db[next_id]['username']
                     ))
 
         for link_id in matrix.get_links_to(link_matrix, this_id):
