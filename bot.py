@@ -121,16 +121,20 @@ def main():
 
             # update the usernames of the user in the db
             print('Updating usernames...')
+            needs_verification = []
             for user_id in db:
                 if db[user_id].get('disabled', False): continue
 
-                username = get_userid_username(bot, user_id) or ''
+                username = get_userid_username(bot, user_id)
+                if username is None:
+                    needs_verification.append(user_id)
                 if username != db[user_id]['username']:
                     print('"{}" -> "{}" ({})'.format(
                         db[user_id]['username'], username, user_id
                     ))
                     has_changed = True
-                    db[user_id]['username'] = username
+                    db[user_id]['username'] = username or ''
+
 
             if has_changed:
                 save_db(db)
@@ -159,26 +163,24 @@ def main():
                 ))
 
 
-            # disable users who are not reachable and not in the group
-            reachable_nodes = chain.flood_fill(link_matrix)
-            change_count = 0
-            for user_id in db:
-                if (not db[user_id].get('disabled', False)
-                    and user_id not in reachable_nodes
-                    and not is_userid_in_group(bot, user_id)
-                ):
-                    print('Disabling @{}...'.format(db[user_id]['username']))
-                    change_count += 1
-                    db[user_id]['disabled'] = True
 
+            # disable users who are not reachable and not in the group
+            print('Finding detached nodes...')
+            reachable_nodes = chain.flood_fill(link_matrix)
+            has_changed = False
+            for user_id in needs_verification:
+                if (not db[user_id].get('disabled', False) and user_id not in reachable_nodes):
+                    print('Disabling id:{}...'.format(user_id))
+                    has_changed = True
+                    db[user_id]['disabled'] = True
 
             # Give users in the main chain a timestamp if they have none
             for user_id in best_chain:
                 if 'joined' not in db[user_id]:
                     db[user_id]['joined'] = int(time.time())
-                    change_count += 1
+                    has_changed = True
 
-            if change_count:
+            if has_changed:
                 save_db(db)
 
 

@@ -50,19 +50,6 @@ def send_message(bot, text):
 
 
 
-def is_userid_in_group(bot, user_id):
-    """Tests if a givedn user_id is in the group"""
-    try:
-        member = bot.getChatMember(CHAT_ID, user_id)
-        return True
-    except Exception as e:
-        if 'user_id_invalid' in e.message.lower() or 'not found' in e.message.lower():
-            print(f'{user_id} is not in the group!')
-            return False
-    return True
-
-
-
 def get_userid_username(bot, user_id):
     """Returns the username of a chat_id, may return None if the user is not in the group"""
     try:
