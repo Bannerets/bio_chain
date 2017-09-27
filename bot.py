@@ -71,10 +71,10 @@ def get_update_users(update):
     if update.message and update.message.chat.id == CHAT_ID:
         for user in update.message.new_chat_members:
             if not user.is_bot:
-                yield str(user.id), user.username if hasattr(user, 'username') else ''
+                yield str(user.id), user.username or ''
         user = update.message.from_user
         if not user.is_bot:
-            yield str(user.id), user.username if hasattr(user, 'username') else ''
+            yield str(user.id), user.username or ''
 
 
 
@@ -124,14 +124,13 @@ def main():
             for user_id in db:
                 if db[user_id].get('disabled', False): continue
 
-                username = get_userid_username(bot, user_id)
+                username = get_userid_username(bot, user_id) or ''
                 if username != db[user_id]['username']:
                     print('"{}" -> "{}" ({})'.format(
                         db[user_id]['username'], username, user_id
                     ))
                     has_changed = True
-                    if username:
-                        db[user_id]['username'] = username
+                    db[user_id]['username'] = username
 
             if has_changed:
                 save_db(db)
@@ -212,7 +211,7 @@ def main():
             time.sleep(60)
         except Exception as e:
             print('Encountered exception while running main loop:', e)
-            #raise e
+            raise e
 
 if __name__ == '__main__':
     main()
