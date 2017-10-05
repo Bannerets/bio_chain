@@ -6,24 +6,27 @@ from shutil import copyfile
 
 import matrix
 import chain
+import changes
 from util import *
 
 DATABASE_FILENAME = 'db.json'
-LAST_CHAIN_FILENAME = 'last_chain.txt'
+LAST_CHAIN_FILENAME = 'last_chain.json'
 LAST_PIN_FILENAME = 'last_pin.txt'
 
 
-
-def update_chain(bot, chain_text):
+def update_chain(bot, best_chain, link_matrix, db):
     """
     Tries to post chain_text (editing the last message if possible)
     Returns True if chain_text was sent, False if not
     """
     # get last chain
     with open(LAST_CHAIN_FILENAME) as f:
-        last_chain = f.read()
-    if last_chain == chain_text:
+        last_chain = json.load(f)
+
+    if last_chain == best_chain:
         return False
+
+    chain_text = chain.stringify(best_chain, link_matrix, db)
 
     # get last message that we sent
     with open(LAST_PIN_FILENAME) as f:
@@ -40,10 +43,10 @@ def update_chain(bot, chain_text):
             chat_id=CHAT_ID,
             message_id=last_pin_id,
             text=chain_text
-        )  
+        )
     except:
-        # can't edit? send a new one (in monospace to prevent notifications)
-        message = send_message(bot, f'```\n{chain_text}```')
+        # can't edit? send a placeholder and then edit it to prevent notifications
+        message = send_message(bot, 'the game')
         if message:
             bot.editMessageText(
                 chat_id=CHAT_ID,
@@ -60,7 +63,7 @@ def update_chain(bot, chain_text):
                 f.write(str(message.message_id))
     finally:
         with open(LAST_CHAIN_FILENAME, 'w') as f:
-            f.write(chain_text)
+            json.dump(best_chain, f)
 
     return True
 
@@ -78,15 +81,15 @@ def get_update_users(update):
 
 
 
-def save_db(db):
+def save_db(db, backup=True):
     """Backs up the current file and then dumps db to DATABASE_FILENAME"""
-    print('Saving db...')
+    print('Saving db...' + ('' if backup else '(no backup)'))
 
-    copyfile(DATABASE_FILENAME, 'db{}.json'.format(int(time.time())))
+    if backup:
+        copyfile(DATABASE_FILENAME, 'bk/db{}.json'.format(current_timestamp()))
 
     with open(DATABASE_FILENAME, 'w') as f:
         json.dump(db, f)
-
 
 
 def main():
@@ -99,6 +102,11 @@ def main():
     next_update_id = -100
 
 
+
+    needs_verification = [] # user ids that we failed to update a username for
+
+    # people that we might need to shout at if they caused a break in the chain
+    pending_shouts = []
     while 1:
         try:
             # Add users who are not in the db to the db
@@ -117,35 +125,121 @@ def main():
                         db[user_id]['disabled'] = False
                 next_update_id = update.update_id + 1
 
-
-
-            # update the usernames of the user in the db
-            print('Updating usernames...')
-            needs_verification = []
-            for user_id in db:
-                if db[user_id].get('disabled', False): continue
-
-                username = get_userid_username(bot, user_id)
-                if username is None:
-                    needs_verification.append(user_id)
-                if username != db[user_id]['username']:
-                    print('"{}" -> "{}" ({})'.format(
-                        db[user_id]['username'], username, user_id
-                    ))
-                    has_changed = True
-                    db[user_id]['username'] = username or ''
-
-
             if has_changed:
                 save_db(db)
 
 
-            # Update the link_matrix of all users in the db based on their bios
-            print('Scraping bios...')
+
+
+
+            # find the user who expires next
+            expired_count = 0
+            expired_id = None
+            min_timestamp = -1
             for user_id in db:
-                if db[user_id].get('disabled', False): continue
-                for link_id in get_userids_from_bio(db, db[user_id]['username']):
-                    link_matrix[link_id][user_id] = matrix.State.Current
+                this_expires = db[user_id].get('expires', 0)
+                if not db[user_id].get('disabled', False):
+                    if this_expires < current_timestamp():
+                        expired_count += 1
+                    if not expired_id or this_expires <= db[expired_id].get('expires', 0):
+                        expired_id = user_id
+                        min_timestamp = this_expires
+
+            # if the user who expires next isn't expired, dont do anything
+            if min_timestamp > current_timestamp():
+                print('we have {} seconds until the next user expires!'.format(
+                    min_timestamp - current_timestamp()
+                ))
+                time.sleep(1)
+                continue
+            if expired_count > 1:
+                print(f'Warning: there are {expired_count} users that need updating!')
+
+            last_username = db[expired_id]['username']
+            print('[{}]: now updating: {} ({})'.format(current_timestamp(), last_username, expired_id))
+            print('delta:', current_timestamp() - min_timestamp)
+
+
+            # update the username of this user
+            has_changed = False
+            try:
+                username = get_username_from_id(bot, expired_id)
+                if username != last_username:
+                    pending_shouts.append( changes.Username(expired_id, last_username, username) )
+                    has_changed = True
+                    db[expired_id]['username'] = username
+            except Exception as e:
+                if 'timed out' in e.message.lower():
+                    print('oh man oh geez that didnt work')
+                    continue
+                needs_verification.append(expired_id)
+
+            # if the username has changed, mark everyone who points to this person as needing an update
+            if has_changed:
+                for user_id in link_matrix[expired_id]:
+                    if link_matrix[expired_id][user_id] is matrix.State.Current:
+                        print('un: Marking {} ({}) for updating!'.format(
+                            db[user_id]['username'],
+                            user_id
+                        ))
+                        db[user_id]['expires'] = 0
+                save_db(db)
+
+
+            # Fetch the users that this person links to in their bio
+            current_links_to = get_usernames_from_bio(db, expired_id)
+            last_links_to = set(db[expired_id].get('bio', []))
+
+            # if their bio has changed
+            if current_links_to != last_links_to:
+                # we might need to shout at them
+                pending_shouts.append( changes.Bio(expired_id, last_links_to, current_links_to) )
+
+                db[expired_id]['bio'] = list(current_links_to)
+                # Mark everyone who was linked by this person as needing an update
+                for user_id in matrix.get_links_to(link_matrix, expired_id):
+                    print('bio: Marked "{}" ({}) for updating!'.format(
+                        db[user_id]['username'],
+                        user_id
+                    ))
+                    db[user_id]['expires'] = 0
+
+
+            db[expired_id]['expires'] = current_timestamp() + 60
+            save_db(db, False)
+
+            expired_count = 0
+            for user_id in db:
+                this_expires = db[user_id].get('expires', 0)
+                if not db[user_id].get('disabled', False) and this_expires < current_timestamp():
+                        expired_count += 1
+
+            if expired_count > 1:
+                continue
+
+
+
+
+
+            # build a translation table from db: username -> user_id
+            username_to_id = {}
+            for user_id, user in db.items():
+                if user.get('disabled', False):
+                    continue
+                username_to_id[user['username'].lower()] = user_id
+
+            # Make all links old, so that changes can be caught
+            for user_id in link_matrix:
+                for link_id in link_matrix[user_id]:
+                    if link_matrix[user_id][link_id] is matrix.State.Current:
+                        link_matrix[user_id][link_id] = matrix.State.Old
+
+            # update the matrix with the bio data (using the translation table)
+            for user_id, user in db.items():
+                for link_username in user.get('bio', []):
+                    link_id = username_to_id.get(link_username.lower(), 0)
+                    if link_id:
+                        link_matrix[link_id][user_id] = matrix.State.Current
 
             if matrix.update_db(link_matrix, db):
                 save_db(db)
@@ -154,22 +248,22 @@ def main():
 
             # find the best chain and post it if it's different to our old one
             print('Finding best chain...')
-            best_chain, chains, best_is_valid = chain.find_best(link_matrix, db)
-            best_chain_str = chain.stringify(best_chain, link_matrix, db)
-            if update_chain(bot, best_chain_str):
+            best_chain, branches, best_is_valid = chain.find_best(link_matrix, db)
+            if update_chain(bot, best_chain, link_matrix, db):
                 print('Chain has been updated!' + (' and is now in an optimal state!' if best_is_valid else ''))
-                send_message(bot, '\n'.join(
-                    chain.get_announcements(best_chain, chains, link_matrix, db)
-                ))
+                send_message(chain.get_branch_announcements(best_chain, branches, link_matrix, db))
 
+
+            for shout in pending_shouts:
+                send_message(bot, shout.shout(link_matrix, db, best_chain, username_to_id))
 
 
             # disable users who are not reachable and not in the group
             print('Finding detached nodes...')
-            reachable_nodes = chain.flood_fill(link_matrix)
+            #reachable_nodes = chain.flood_fill(link_matrix) #td:figure out why i thought i needed this
             has_changed = False
             for user_id in needs_verification:
-                if (not db[user_id].get('disabled', False) and user_id not in reachable_nodes):
+                if (not db[user_id].get('disabled', False) and user_id not in best_chain):
                     print('Disabling id:{}...'.format(user_id))
                     has_changed = True
                     db[user_id]['disabled'] = True
@@ -177,13 +271,16 @@ def main():
             # Give users in the main chain a timestamp if they have none
             for user_id in best_chain:
                 if 'joined' not in db[user_id]:
-                    db[user_id]['joined'] = int(time.time())
+                    db[user_id]['joined'] = current_timestamp()
                     has_changed = True
 
             if has_changed:
                 save_db(db)
 
 
+
+            if not best_is_valid:
+                continue
 
             # Get rid of old non-existent links if the chain passes through only real links
             change_count = 0
@@ -196,21 +293,8 @@ def main():
                 if change_count:
                     print(f'Purged {change_count} old links!')
 
-
-            # Make all links old, so that changes can be caught
-            for user_id in link_matrix:
-                for link_id in link_matrix[user_id]:
-                    if link_matrix[user_id][link_id] is matrix.State.Current:
-                        link_matrix[user_id][link_id] = matrix.State.Old
-                        change_count += 1
-
-
-
             if matrix.update_db(link_matrix, db):
                 save_db(db)
-            #exit()
-
-            time.sleep(60)
         except Exception as e:
             print('Encountered exception while running main loop:', e)
             raise e

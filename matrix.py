@@ -32,7 +32,12 @@ def from_db(db):
     link_matrix = new_empty()
     for user_id, data in db.items():
         for link in data.get('linked_by', []):
-            link_matrix[user_id][link] = State.Old
+            state = State.Current
+            if link[0] == '!':
+                state = State.Old
+                link = link[1:]
+
+            link_matrix[user_id][link] = state
 
     return link_matrix
 
@@ -49,8 +54,11 @@ def update_db(link_matrix, db):
         new_links = set()
 
         for link in link_matrix[user_id]:
-            if link_matrix[user_id][link] is not State.Empty:
+            state = link_matrix[user_id][link]
+            if state is State.Current:
                 new_links.add(link)
+            elif state is State.Old:
+                new_links.add('!'+link)
 
         if new_links != set(db[user_id].get('linked_by', [])):
             db[user_id]['linked_by'] = list(new_links)
@@ -88,9 +96,17 @@ def debug_print(link_matrix, db):
 
 
 def get_links_to(link_matrix, user_id):
-    """Returns a list of all valid links of user_id to other users (ie all the users linked from user_id)"""
+    """Returns a list of all valid links that user_id has to other users"""
     links = []
     for link_id in link_matrix:
         if link_matrix[link_id][user_id] is State.Current:
             links.append(link_id)
     return links
+
+
+def has_valid_link(link_matrix, user_id):
+    """Returns true if user_id has a valid link, false if not"""
+    for link_id in link_matrix:
+        if link_matrix[link_id][user_id] is State.Current:
+            return True
+    return False

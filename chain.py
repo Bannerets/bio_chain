@@ -1,5 +1,4 @@
 import matrix
-import math
 
 END_NODE = '51863899'
 BRANCH_SLICE = 5
@@ -30,7 +29,7 @@ def tally(chain, link_matrix):
 
 
 def find_merge_head(chain1, chain2):
-    """Finds the nodes just before the merge of two chains""" #td better doc 
+    """Finds the nodes just before the merge of two chains"""
     i = 0
     max1, max2 = len(chain1)-1, len(chain2)-1
     while chain1[min(i, max1)] == chain2[min(i, max2)] and (i < max1 or i < max2):
@@ -62,9 +61,8 @@ def find_best(link_matrix, db):
         for next_link in link_matrix[last_link]:
             # if next_link is valid and we have not visited it before
             if link_matrix[last_link][next_link] is not matrix.State.Empty and next_link not in this_chain:
-                # since we can reach a current node this is not the end
-                if link_matrix[last_link][next_link] is matrix.State.Current:
-                    is_end = False
+                # since we can reach a node then this is not the end
+                is_end = False
                 # add [this_chain + next_link] to pending_chains
                 new_chain = this_chain[:]
                 new_chain.append(next_link)
@@ -182,34 +180,8 @@ def summary(chain, link_matrix, db):
 
 
 
-def get_announcements(best_chain, branches, link_matrix, db):
-    """Returns a list of any announcements that need to be made because of broken links in best_chain"""
-    announcements = []
-    tmp_chain = best_chain[::-1]
-
-
-    for i in range(1, len(tmp_chain)):
-        this_id, next_id = tmp_chain[i-1], tmp_chain[i]
-        if link_matrix[next_id][this_id] is not matrix.State.Current:
-            announcements.append(BULLET + '@{} has no valid links (should be `@{}`)!'.format(
-                db[this_id]['username'],
-                db[next_id]['username']
-            ))
-            for link_id in link_matrix[this_id]:
-                if link_matrix[this_id][link_id] is matrix.State.Current:
-                    announcements.append('  - @{} might want to link to `@{}` because of this!'.format(
-                        db[link_id]['username'],
-                        db[next_id]['username']
-                    ))
-
-        for link_id in matrix.get_links_to(link_matrix, this_id):
-            if link_id != next_id:
-                announcements.append(BULLET + '@{} should remove their unnecessary link to `@{}`'.format(
-                    db[this_id]['username'],
-                    db[link_id]['username']
-                ))
-
-
+def get_branch_announcements(best_chain, branches, link_matrix, db):
+    """Returns a list of any announcements that need to be made because branches off the best chain"""
     head = best_chain[-1]
     for branch in branches:
         branch_point, merger, i = find_merge_head(best_chain, branch)
@@ -218,12 +190,12 @@ def get_announcements(best_chain, branches, link_matrix, db):
             continue
 
         slice_count = len(branch) - i - BRANCH_SLICE
-        announcements.append(BULLET + '@{} of branch `{}` should link to `@{}`'.format(
+        announcements.append(BULLET + '@{} should link to `@{}` (currently `@{}`)'.format(
             db[merger]['username'],
-            (f'[{slice_count} user(s)] → ' if slice_count > 0 else '') + stringify(branch[i:i+BRANCH_SLICE], link_matrix, db, False) + ' → [main chain]',
             db[head]['username'],
+            db[branch[i]]['username']
         ))
 
         head = branch[-1]
 
-    return announcements
+    return '\n'.join(announcements)
