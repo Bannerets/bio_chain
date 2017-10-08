@@ -6,7 +6,7 @@ import time
 
 RE_SCRAPE_BIO = re.compile(r'<meta +property="og:description" +content="(.+?)".*>')
 RE_USERNAME = re.compile(r'@([a-zA-Z][\w\d]{4,31})')
-CHAT_ID = -1001113029151
+CHAT_ID = -1001145055784
 
 
 def get_usernames_from_bio(db, user_id):
@@ -38,7 +38,7 @@ def get_usernames_from_bio(db, user_id):
 
 
 
-def send_message(bot, text):
+def send_message(bot, text, chat_id=CHAT_ID):
     """Prints a message and then sends it via the bot to the chat"""
     if not text:
         return
@@ -46,7 +46,7 @@ def send_message(bot, text):
     print('out:', text)
 
     return bot.sendMessage(
-        chat_id=CHAT_ID,
+        chat_id=chat_id,
         text=text,
         parse_mode='Markdown',
     )
@@ -63,6 +63,13 @@ def get_username_from_id(bot, user_id):
 def current_timestamp():
     return int(time.time())
 
+def markdown_escape(s, code=False):    
+    s = s.replace('`', '\\`')
 
-def username_str(username):
-    return '@'+username or '[no username]'
+    if code:
+        return s
+
+    return s.replace('*', '\\*').replace('_', '\\_')
+
+def username_str(username, code=False):
+    return '@'+markdown_escape(username) or '[no username]'

@@ -95,13 +95,18 @@ def debug_print(link_matrix, db):
 
 
 
-def get_links_to(link_matrix, user_id):
-    """Returns a list of all valid links that user_id has to other users"""
-    links = []
+def get_links_to(link_matrix, user_id, filter=lambda link: link is not State.Empty):
+    """Yields all link_ids to user_id that match filter"""
     for link_id in link_matrix:
-        if link_matrix[link_id][user_id] is State.Current:
-            links.append(link_id)
-    return links
+        if filter(link_matrix[link_id][user_id]):
+            yield link_id
+
+
+def get_links_from(link_matrix, user_id, filter=lambda link: link is not State.Empty):
+    """Yields all link_ids from user_id that match filter"""
+    for link_id in link_matrix[user_id]:
+        if filter(link_matrix[user_id][link_id]):
+            yield link_id
 
 
 def has_valid_link(link_matrix, user_id):

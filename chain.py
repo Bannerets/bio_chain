@@ -1,4 +1,5 @@
 import matrix
+from util import *
 
 END_NODE = '51863899'
 BRANCH_SLICE = 5
@@ -58,20 +59,21 @@ def find_best(link_matrix, db):
         is_end = True
 
         # iterate through all the links that we can go to
-        for next_link in link_matrix[last_link]:
-            # if next_link is valid and we have not visited it before
-            if link_matrix[last_link][next_link] is not matrix.State.Empty and next_link not in this_chain:
-                # since we can reach a node then this is not the end
-                is_end = False
-                # add [this_chain + next_link] to pending_chains
-                new_chain = this_chain[:]
-                new_chain.append(next_link)
-                pending_chains.append(new_chain)
+        for next_link in matrix.get_links_from(link_matrix, last_link):
+            # skip link if we have visited it before
+            if next_link in this_chain:
+                continue
+
+            # since we can reach a node then this is not the end
+            is_end = False
+            # add [this_chain + next_link] to pending_chains
+            new_chain = this_chain[:]
+            new_chain.append(next_link)
+            pending_chains.append(new_chain)
 
         # if last_link doesn't go anywhere, then add it to our found chains
         if is_end:
             found_chains.append(this_chain)
-
 
     # find the best chain
     best_index = 0
@@ -182,6 +184,8 @@ def summary(chain, link_matrix, db):
 
 def get_branch_announcements(best_chain, branches, link_matrix, db):
     """Returns a list of any announcements that need to be made because branches off the best chain"""
+    announcements = []
+
     head = best_chain[-1]
     for branch in branches:
         branch_point, merger, i = find_merge_head(best_chain, branch)
@@ -190,10 +194,10 @@ def get_branch_announcements(best_chain, branches, link_matrix, db):
             continue
 
         slice_count = len(branch) - i - BRANCH_SLICE
-        announcements.append(BULLET + '@{} should link to `@{}` (currently `@{}`)'.format(
-            db[merger]['username'],
-            db[head]['username'],
-            db[branch[i]]['username']
+        announcements.append(BULLET + '{} should link to `{}` (currently `{}`)'.format(
+            username_str(db[merger]['username']),
+            username_str(db[head]['username'], True),
+            username_str(db[branch[i]]['username'], True)
         ))
 
         head = branch[-1]

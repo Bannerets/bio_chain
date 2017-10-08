@@ -47,14 +47,14 @@ class Bio(Base):
                     break
                 shouts.append(BULLET + '{}\'s bio should have a link to `{}` but it doesn\'t!'.format(
                     username_str(db[self.user_id]['username']),
-                    username_str(db[prev_id]['username'])
+                    username_str(db[prev_id]['username'], True)
                 ))
 
                 if i == len(best_chain) - 1:
                     break
                 shouts.append(BULLET_2 + '{} might want to link to `{}` because of this!'.format(
                     username_str(db[best_chain[i + 1]]['username']),
-                    username_str(db[prev_id]['username'])
+                    username_str(db[prev_id]['username'], True)
                 ))
                 break
 
@@ -63,7 +63,7 @@ class Bio(Base):
             if link_id and link_id != correct_link_id:
                 shouts.append(BULLET + '{} should remove their unnecessary link to `{}`!'.format(
                     username_str(db[self.user_id]['username']),
-                    username_str(db[link_id]['username'])
+                    username_str(db[link_id]['username'], True)
                 ))
 
 
