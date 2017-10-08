@@ -72,4 +72,4 @@ def markdown_escape(s, code=False):
     return s.replace('*', '\\*').replace('_', '\\_')
 
 def username_str(username, code=False):
-    return '@'+markdown_escape(username) or '[no username]'
+    return '@'+markdown_escape(username) if username else '[no username]'
