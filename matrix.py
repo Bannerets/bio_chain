@@ -40,7 +40,6 @@ class LinkMatrix():
 
 
     def set_link_to(self, linker, linked, state):
-        print("{} -> {}".format(linker, linked))
         self.links_to[linker][linked] = state
         self.links_from[linked][linker] = state
 

@@ -17,7 +17,14 @@ class Database():
             self.users[user_id] = User(user_id, user_data)
             print(self.users[user_id].to_dict())
 
+        # setup matrix from loaded data
         self.matrix = matrix.LinkMatrix()
+        for user_id, user_data in data.items():
+            links = user_data.get('linked_by', [])
+            for link in links:
+                self.matrix.set_link_from(user_id, link, matrix.State.DEAD)
+
+        self.update_links_from_bios()
 
 
     def get_translation_table(self):
@@ -52,5 +59,3 @@ class Database():
 
 if __name__ == '__main__':
     db = Database('example_db.json')
-
-    print(db.update_links_from_bios())
