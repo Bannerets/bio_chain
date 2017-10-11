@@ -1,3 +1,4 @@
+import os
 import json
 import requests
 from user import User
@@ -56,6 +57,5 @@ class Database():
 
         return tr_table
 
-
 if __name__ == '__main__':
-    db = Database('example_db.json')
+    database = Database('example_db.json')
