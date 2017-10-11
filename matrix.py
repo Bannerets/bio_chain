@@ -1,117 +1,137 @@
 from enum import Enum
-from collections import defaultdict
-import json
 
+from collections import defaultdict
 
 
 class State(Enum):
     """
     State of a link:
-    Old: The link has existed in the past but does not exist right now
-    Empty: There's no link here
-    Current: The link exists right now
+    DEAD: The link has existed in the past but does not exist right now
+    NONE: There's no link here
+    REAL: The link exists right now
     """
-    Old = -1
-    Empty = 0
-    Current = 1
+    DEAD = -1
+    NONE = 0
+    REAL = 1
 
+class LinkMatrix():
+    """Wrapper for two matricies that represent forward and backwards connections in a graph"""
+    def __init__(self):
+        self.links_to = self.__new_empty()
+        self.links_from = self.__new_empty()
+        
 
-
-def new_empty():
-    return defaultdict(
-        lambda: defaultdict(
-            lambda: State.Empty
+    def __new_empty(self):
+        return defaultdict(
+            lambda: defaultdict(
+                lambda: State.NONE
+            )
         )
-    )
 
 
-
-def from_db(db):
-    """Builds a link matrix from db"""
-
-    link_matrix = new_empty()
-    for user_id, data in db.items():
-        for link in data.get('linked_by', []):
-            state = State.Current
-            if link[0] == '!':
-                state = State.Old
-                link = link[1:]
-
-            link_matrix[user_id][link] = state
-
-    return link_matrix
+    def replace(self, state, new_state):
+        count = 0
+        for linker in self.links_to:
+            for linked in self.links_to[linker]:
+                if self.links_to[linker][linked] is state:
+                    self.set_link_to(linker, linked, new_state)
+                    count += 1
+        return count
 
 
+    def set_link_to(self, linker, linked, state):
+        print("{} -> {}".format(linker, linked))
+        self.links_to[linker][linked] = state
+        self.links_from[linked][linker] = state
 
-def update_db(link_matrix, db):
-    """
-    Modifies db with new data from link_matrix
-    Returns True if any change has been made to db
-    """
-    modified = False
-
-    for user_id in link_matrix:
-        new_links = set()
-
-        for link in link_matrix[user_id]:
-            state = link_matrix[user_id][link]
-            if state is State.Current:
-                new_links.add(link)
-            elif state is State.Old:
-                new_links.add('!'+link)
-
-        if new_links != set(db[user_id].get('linked_by', [])):
-            db[user_id]['linked_by'] = list(new_links)
-            modified = True
+    def set_link_from(self, linked, linker, state):
+        self.links_from[linked][linker] = state
+        self.links_to[linker][linked] = state
 
 
-    return modified
+    def get_link_to(self, linker, linked):
+        return self.links_to[linker][linked]
+
+    def get_link_from(self, linked, linker):
+        return self.links_from[linked][linker]
 
 
+    def get_links_to(self, linked, filter=lambda l: l is not State.NONE):
+        """yields links to linked that match filter"""
+        for linker in self.links_from[linked]:
+            if filter(self.links_from[linked][linker]):
+                yield linker
 
-def debug_print(link_matrix, db):
-    """Prints link_matrix in a grid"""
-    padding = 0
-    for user_id, data in db.items():
-        if len(data['username']) > padding:
-            padding = len(data['username'])
-    padding += 2
-
-    print(' ' * (padding+1), end='')
-    i = 0
-    for key in db:
-        print('{0: >2} '.format(chr(i + 65)), end='')
-        i += 1
-    print()
+    def get_links_from(self, linker, filter=lambda l: l is not State.NONE):
+        """yields links from linker that match filter"""
+        for linked in self.links_to[linker]:
+            if filter(self.links_to[linker][linked]):
+                yield linked
 
 
-    i = 0
-    for basekey in db:
-        print('{} {}'.format(chr(i + 65), db[basekey]['username']).ljust(padding) + ':', end='')
-        for key in db:
-            print('{0: >2} '.format(link_matrix[basekey][key].value), end='')
-        print()
-        i += 1
+    def has_link_like(self, linker, state=State.REAL):
+        """Returns True if linker has a link that is the same as state"""
+        for linked in self.links_to[linker]:
+            if self.links_to[linker][linked] is state:
+                return True
+        return False
 
 
+    def get_chains_to(self, end_node):
+        """
+        Returns a list of chains (if any) that end on end_node
+        """
+        found_chains = []
 
-def get_links_to(link_matrix, user_id, filter=lambda link: link is not State.Empty):
-    """Yields all link_ids to user_id that match filter"""
-    for link_id in link_matrix:
-        if filter(link_matrix[link_id][user_id]):
-            yield link_id
+        pending_chains = [[end_node]]
+
+        while pending_chains:
+            # grab a chain from the stack
+            this_chain = pending_chains.pop()
+            last_link = this_chain[-1]
+            is_end = True
+
+            # iterate through all the links lead to here
+            for next_link in self.get_links_to(last_link):
+                # skip link if we have visited it before
+                if next_link in this_chain:
+                    continue
+
+                # since we can reach a node then this is not the end
+                is_end = False
+                # add [this_chain + next_link] to pending_chains
+                new_chain = this_chain[:]
+                new_chain.append(next_link)
+                pending_chains.append(new_chain)
+
+            # if last_link doesn't go anywhere, then add it to our found chains
+            if is_end:
+                found_chains.append(this_chain[::-1])
+
+        return found_chains
 
 
-def get_links_from(link_matrix, user_id, filter=lambda link: link is not State.Empty):
-    """Yields all link_ids from user_id that match filter"""
-    for link_id in link_matrix[user_id]:
-        if filter(link_matrix[user_id][link_id]):
-            yield link_id
+    def chain_all_links_equal(self, chain, state=State.REAL):
+        """Returns true if all links in chain are equal to state"""
+        for i in range(1, len(chain)):
+            this_node, next_node = chain[i-1], chain[i]
+            if self.links_to[this_node][next_node] is not state:
+                return False
+
+        return True
 
 
-def has_valid_link(link_matrix, user_id):
-    """Returns true if user_id has a valid link, false if not"""
-    for link_id in link_matrix:
-        if link_matrix[link_id][user_id] is State.Current:
-            return True
-    return False
+if __name__ == '__main__':
+    matrix = LinkMatrix()
+
+    matrix.set_link_to('A', 'B', State.REAL)
+    assert matrix.get_link_from('B', 'A') == State.REAL
+    assert matrix.get_link_from('B', 'A') == matrix.get_link_to('A', 'B')
+
+    matrix.set_link_to('A', 'C', State.REAL)
+    matrix.set_link_to('B', 'C', State.REAL)
+    matrix.set_link_to('C', 'D', State.REAL)
+    # A -> B -> C -> D
+    #  \_______/
+
+    print(matrix.get_chains_to('D'))
