@@ -55,17 +55,17 @@ class LinkMatrix():
         return self.links_from[linked][linker]
 
 
-    def get_links_to(self, linked, filter=lambda l: l is not State.NONE):
-        """yields links to linked that match filter"""
-        for linker in self.links_from[linked]:
-            if filter(self.links_from[linked][linker]):
-                yield linker
-
-    def get_links_from(self, linker, filter=lambda l: l is not State.NONE):
-        """yields links from linker that match filter"""
+    def get_links_to(self, linker, filter=lambda l: l is not State.NONE):
+        """yields nodes that the linker links to that match filter"""
         for linked in self.links_to[linker]:
             if filter(self.links_to[linker][linked]):
                 yield linked
+
+    def get_links_from(self, linked, filter=lambda l: l is not State.NONE):
+        """yields nodes that linked is linked from that match filter"""
+        for linker in self.links_from[linked]:
+            if filter(self.links_from[linked][linker]):
+                yield linker
 
 
     def has_link_like(self, linker, state=State.REAL):
@@ -76,7 +76,7 @@ class LinkMatrix():
         return False
 
 
-    def get_chains_to(self, end_node):
+    def get_chains_ending_on(self, end_node):
         """
         Returns a list of chains (if any) that end on end_node
         """
@@ -91,7 +91,7 @@ class LinkMatrix():
             is_end = True
 
             # iterate through all the links lead to here
-            for next_link in self.get_links_to(last_link):
+            for next_link in self.get_links_from(last_link):
                 # skip link if we have visited it before
                 if next_link in this_chain:
                     continue
@@ -119,6 +119,26 @@ class LinkMatrix():
 
         return True
 
+    def chain_tally(self, chain):
+        count = defaultdict(int)
+
+        for i in range(1, len(chain)):
+            this_node, next_node = chain[i-1], chain[i]
+            count[self.links_to[this_node][next_node]] += 1
+
+        return count
+
+    def chain_get_merge_points(self, chain1, chain2):
+        """Finds the index of the nodes just before the merge of two chains"""
+        i1 = len(chain1)-1
+        i2 = len(chain2)-1
+
+        while chain1[i1] == chain2[i2] and (i1 > 0 or i2 > 0):
+            i1 = max(i1 - 1, 0)
+            i2 = max(i2 - 1, 0)
+
+        return i1, i2
+
 
 if __name__ == '__main__':
     matrix = LinkMatrix()
@@ -130,7 +150,14 @@ if __name__ == '__main__':
     matrix.set_link_to('A', 'C', State.REAL)
     matrix.set_link_to('B', 'C', State.REAL)
     matrix.set_link_to('C', 'D', State.REAL)
+    matrix.set_link_to('Q', 'D', State.REAL)
     # A -> B -> C -> D
     #  \_______/
 
-    print(matrix.get_chains_to('D'))
+    chains = matrix.get_chains_ending_on('D')
+
+    print(chains)
+    print(matrix.chain_get_merge_points(chains[0], chains[1]))
+
+    print(matrix.chain_tally(chains[0]))
+    
