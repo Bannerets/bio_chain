@@ -48,6 +48,8 @@ class Database():
 
 
     def save(self, backup=True):
+        print('Saving db...' + ('' if backup else '(no backup)'))
+
         if backup and self.backup_fmt:
             copyfile(self.filename, self.backup_fmt.format(get_current_timestamp()))
 
@@ -222,14 +224,9 @@ class Database():
         """Returns a list of any announcements that need to be made because branches off the best chain"""
         announcements = []
 
-        head = best_chain[-1]
-        for branch in branches:
-            branch_point_i, merger_i = self.matrix.chain_get_merge_points(best_chain, branch)
-
-            print('BRANCH')
-            print(best_chain)
-            print(branch)
-            print(best_chain[branch_point_i], branch[merger_i])
+        head = self.best_chain[-1]
+        for branch in self.branches:
+            branch_point_i, merger_i = self.matrix.chain_get_merge_points(self.best_chain, branch)
 
             if merger in self.best_chain or matrix.get_link_to(branch[merger_i], branch[i]) is matrix.State.DEAD:
                 continue
