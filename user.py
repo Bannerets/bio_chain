@@ -61,8 +61,9 @@ class User():
             if new_username != self.username:
                 old_username_str = str(self)
                 self.username = new_username
-                if old_username_str.lower() != str(self).lower():
-                    pending_changes.append( changes.Username(self.id, old_username_str, str(self)) )
+                new_username_str = str(self)
+                if old_username_str.lower() != new_username_str.lower():
+                    pending_changes.append( changes.Username(self.id, old_username_str, new_username_str) )
         except telegram.error.TimedOut:
             print('  Timed out fetching username')
         except Exception as e:
