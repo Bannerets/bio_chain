@@ -122,8 +122,6 @@ def main():
                 continue
 
 
-            # update the link matrix with the bio data that we scraped
-            tr_table = db.update_links_from_bios()
             # rebuild the best chain
             db.update_best_chain(END_NODE)
 
@@ -132,7 +130,7 @@ def main():
                 send_message(bot, db.get_branch_announcements())
 
             for pending_change in pending_changes:
-                print(pending_change)
+                send_message(bot, pending_change.shout(db))
             pending_changes.clear()
 
             # disable users who we failed to fetch a username for and aren't in the chain
@@ -143,12 +141,11 @@ def main():
             # Get rid of old non-existent links if the chain passes through only real links
             if db.best_chain_is_valid:
                 print('Purged {} dead links'.format( db.clear_dead_links() ))
-
             exit()
         except Exception as e:
-            print('Encountered exception while running main loop:', type(e))
-            #send_message(bot, '```\n{}\n{}```'.format(type(e), traceback.format_exc()), 232787997)
             raise e
+            #print('Encountered exception while running main loop:', type(e))
+            #send_message(bot, '```\n{}\n{}```'.format(type(e), traceback.format_exc()), 232787997)
 
 if __name__ == '__main__':
     main()

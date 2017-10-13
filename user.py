@@ -24,6 +24,8 @@ class User():
         for key, default_val in self.defaults.items():
             setattr(self, key, data.get(key, default_val))
 
+        self.bio = []
+
 
     def __str__(self):
         #todo: handle blank usename better
@@ -59,9 +61,10 @@ class User():
         try:
             new_username = bot.getChatMember(CHAT_ID, self.id).user.username or ''
             if new_username != self.username:
-                if new_username.lower() != self.username.lower():
-                    pending_changes.append( changes.Username(self.id, self.username, new_username) )
+                old_username_str = str(self)
                 self.username = new_username
+                if old_username_str.lower() != str(self).lower():
+                    pending_changes.append( changes.Username(self.id, old_username_str, str(self)) )
         except telegram.error.TimedOut:
             print('  Timed out fetching username')
         except Exception as e:
