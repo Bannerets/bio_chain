@@ -5,13 +5,12 @@ import traceback
 
 from database import Database
 from file_string import FileString
+import commands
 from util import *
 
 DATABASE_FILENAME = 'db.json'
 END_NODE = '51863899'
 LAST_CHAIN = FileString('last_chain.txt')
-LAST_PIN = FileString('last_pin.txt')
-
 
 def update_chain(bot, chain_text):
     """
@@ -81,8 +80,31 @@ def get_update_users(update):
             yield str(user.id), user.username or ''
 
 
-def handle_update(update):
-    print(update)
+def handle_update_command(db, update):
+    if not update.message:
+        return False
+
+    message = update.message
+
+    if not message.text or not message.text.startswith('/'):
+        return False
+
+    command_split = message.text[1:].split(' ', 1)
+    command_args = command_split[1:] or ''
+
+    directed = False # True if the command was directed to a bot
+    command = command_split[0].lower().split('@')
+    if command[1:]:
+        directed = True
+    command.append(message.bot.username)
+    if command[1] != message.bot.username:
+        return False
+
+    try:
+        getattr(commands, command[0])(db, update, directed, command_args)
+    except AttributeError:
+        if directed:
+            print('got unknown command:', message.text)
 
 
 def main():
@@ -101,7 +123,7 @@ def main():
                 updates = []
 
             for update in updates:
-                handle_update(update)
+                handle_update_command(db, update)
                 # Add users who are not in the db to the db
                 for user_id, username in get_update_users(update):
                     db.add_user(user_id, username)
@@ -132,7 +154,10 @@ def main():
 
             # disable users who we failed to fetch a username for and aren't in the chain
             for user_id in db.users:
-                if db.users[user_id].username_fetch_failed and user_id not in db.best_chain:
+                if not db.users[user_id].username_fetch_failed:
+                    continue
+                print('rechecking', db.users[user_id].str_with_id())
+                if user_id not in db.best_chain:
                     db.disable_user(user_id)
 
             # Get rid of old non-existent links if the chain passes through only real links
