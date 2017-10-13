@@ -124,7 +124,7 @@ class Database():
                 next_id = user_id
                 min_timestamp = user.expires
 
-        if count >= 5:
+        if count >= 20:
             print(f'Warning: there are {count} users that need updating!')
 
         return next_id
