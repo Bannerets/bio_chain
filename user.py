@@ -24,8 +24,6 @@ class User():
         for key, default_val in self.defaults.items():
             setattr(self, key, data.get(key, default_val))
 
-        self.bio = []
-
 
     def __str__(self):
         #todo: handle blank usename better

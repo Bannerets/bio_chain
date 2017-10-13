@@ -14,9 +14,6 @@ LAST_PIN = FileString('last_pin.txt')
 
 
 def update_chain(bot, chain_text):
-    print(chain_text)
-    return True
-
     """
     Tries to post chain_text (editing the last message if possible)
     Returns True if chain_text was sent, False if not
@@ -65,7 +62,6 @@ def send_message(bot, text, chat_id=CHAT_ID):
         return
         
     print('out:', text)
-    return
 
     return bot.sendMessage(
         chat_id=chat_id,
@@ -141,7 +137,6 @@ def main():
             # Get rid of old non-existent links if the chain passes through only real links
             if db.best_chain_is_valid:
                 print('Purged {} dead links'.format( db.clear_dead_links() ))
-            exit()
         except Exception as e:
             raise e
             #print('Encountered exception while running main loop:', type(e))

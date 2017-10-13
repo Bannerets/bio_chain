@@ -41,10 +41,10 @@ class Database():
                     state = matrix.State.DEAD
                 self.matrix.set_link_to(user_id, link_id, state)
 
-        # update_translation_table
+        # storage for update_translation_table()
         self.translation_table = {}
 
-        # update_best_chain
+        # storage for update_best_chain()
         self.best_chain = []
         self.branches = []
         self.best_chain_is_valid = True
@@ -156,7 +156,7 @@ class Database():
         for user_id, user in self.users.items():
             if user.disabled or not user.username:
                 continue
-            tr_table[user.username.lower()] = user_id
+            self.translation_table[user.username.lower()] = user_id
 
 
     def update_links_from_bios(self):
@@ -181,6 +181,7 @@ class Database():
 
 
     def update_best_chain(self, end_node):
+        self.update_links_from_bios()
         found_chains = self.matrix.get_chains_ending_on(end_node)
 
         # find the best chain

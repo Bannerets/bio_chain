@@ -7,7 +7,7 @@ def get_current_timestamp():
 
 
 def markdown_escape(s, code=False):    
-    s = s.replace('`', '\\`')
+    s = str(s).replace('`', '\\`')
 
     if code:
         return s

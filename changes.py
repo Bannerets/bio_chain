@@ -36,28 +36,26 @@ class Username(Base):
 
 class Bio(Base):
     def shout(self, db):
-        username_to_id
-
         shouts = []
         correct_link_id = 0
         for i in range(1, len(db.best_chain)):
-            prev_id, this_id = db.best_chain[i-1], db.best_chain[i]
+            this_id, next_id = db.best_chain[i-1], db.best_chain[i]
 
             if this_id == self.user_id:
-                correct_link_id = prev_id
+                correct_link_id = next_id
 
-                if db.matrix.get_link_to(prev_id, this_id) is matrix.State.REAL:
+                if db.matrix.get_link_to(this_id, next_id) is matrix.State.REAL:
                     break
                 shouts.append(BULLET + '{}\'s bio should have a link to `{}` but it doesn\'t!'.format(
                     markdown_escape(db.users[self.user_id]),
-                    markdown_escape(db.users[prev_id], True)
+                    markdown_escape(db.users[next_id], True)
                 ))
 
-                if i == len(db.best_chain) - 1:
+                if i > 0:
                     break
                 shouts.append(BULLET_2 + '{} might want to link to `{}` because of this!'.format(
-                    markdown_escape(db.users[db.best_chain[i + 1]]),
-                    markdown_escape(db.users[prev_id], True)
+                    markdown_escape(db.users[db.best_chain[i - 1]]),
+                    markdown_escape(db.users[next_id], True)
                 ))
                 break
 
@@ -66,15 +64,15 @@ class Bio(Base):
             if link_id == correct_link_id:
                 continue
 
-            warn_username = link_username
+            warn_username = '@'+link_username
             warn_command = 'might want to'
             if link_id:
                 warn_username = str(db.users[self.user_id])
                 warn_command = 'should'
 
             shouts.append(BULLET + '{} {} remove their unnecessary link to `{}`!'.format(
-                warn_command,
                 markdown_escape(db.users[self.user_id]),
+                warn_command,
                 markdown_escape(warn_username, True)
             ))
 
