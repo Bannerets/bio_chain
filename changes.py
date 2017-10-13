@@ -61,7 +61,7 @@ class Bio(Base):
 
         for link_username in self.current:
             link_id = db.translation_table.get(link_username.lower(), None)
-            if link_id == correct_link_id:
+            if link_id == correct_link_id or link_id == self.id:
                 continue
 
             warn_username = '@'+link_username
