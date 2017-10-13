@@ -39,7 +39,7 @@ class User():
 
 
     def reset_expiry(self):
-        self.expires = get_current_timestamp() + 240
+        self.expires = get_current_timestamp() + 60
         return True
 
 
