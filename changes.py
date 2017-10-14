@@ -38,6 +38,10 @@ class Username(Base):
         return '\n'.join(shouts)
 
 
+    def iter_need_update(self, db):
+        return db.matrix.get_links_from(self.user_id)
+
+
 class Bio(Base):
     def shout(self, db):
         shouts = []
@@ -84,3 +88,7 @@ class Bio(Base):
 
 
         return '\n'.join(shouts)
+
+
+    def iter_need_update(self, db):
+        return db.matrix.get_links_to(self.user_id)

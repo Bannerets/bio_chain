@@ -144,6 +144,11 @@ class Database():
         if changes:
             self.save()
 
+        for change in changes:
+            for link_id in change.iter_need_update(self):
+                print('  marked {} for updating'.format(self.users[link_id]))
+                self.users[link_id].expires = 0
+
         return changes, True
 
 
