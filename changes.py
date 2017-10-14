@@ -1,9 +1,6 @@
 import matrix
 from util import *
 
-BULLET = '∙ '
-BULLET_2 = '  - '
-
 
 class Base():
     def __init__(self, user_id, last, current):

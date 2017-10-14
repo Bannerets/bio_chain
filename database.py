@@ -225,20 +225,22 @@ class Database():
         """Returns a list of any announcements that need to be made because branches off the best chain"""
         announcements = []
 
-        head = self.best_chain[-1]
+        head = self.best_chain[0]
         for branch in self.branches:
             branch_point_i, merger_i = self.matrix.chain_get_merge_points(self.best_chain, branch)
 
-            if branch[merger_i] in self.best_chain or matrix.get_link_to(branch[merger_i], branch[i]) is matrix.State.DEAD:
+            if branch[merger_i] in self.best_chain:
+                continue
+            if self.matrix.get_link_to(branch[merger_i], branch[merger_i+1]) is matrix.State.DEAD:
                 continue
 
-            announcements.append(BULLET + '{} should link to `{}` (currently `{}`)'.format(
+            announcements.append(BULLET + '{} should link to `{}` instead of `{}`'.format(
                 self.users[branch[merger_i]],
                 self.users[head],
                 self.users[branch[merger_i+1]],
             ))
 
-            head = branch[-1]
+            head = branch[0]
 
         return '\n'.join(announcements)
 
