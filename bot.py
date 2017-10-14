@@ -123,11 +123,11 @@ def main():
                 updates = []
 
             for update in updates:
+                next_update_id = update.update_id + 1
                 handle_update_command(db, update)
                 # Add users who are not in the db to the db
                 for user_id, username in get_update_users(update):
                     db.add_user(user_id, username)
-                next_update_id = update.update_id + 1
 
 
             # try to update the user who expires next
