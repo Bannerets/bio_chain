@@ -164,9 +164,9 @@ def main():
             if db.best_chain_is_valid:
                 print('Purged {} dead links'.format( db.clear_dead_links() ))
         except Exception as e:
-            raise e
-            #print('Encountered exception while running main loop:', type(e))
-            #send_message(bot, '```\n{}\n{}```'.format(type(e), traceback.format_exc()), 232787997)
+            #raise e
+            print('Encountered exception while running main loop:', type(e))
+            send_message(bot, '```\n{}\n{}```'.format(type(e), traceback.format_exc()), 232787997)
 
 if __name__ == '__main__':
     main()

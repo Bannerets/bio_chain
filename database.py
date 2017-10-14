@@ -229,7 +229,7 @@ class Database():
         for branch in self.branches:
             branch_point_i, merger_i = self.matrix.chain_get_merge_points(self.best_chain, branch)
 
-            if merger in self.best_chain or matrix.get_link_to(branch[merger_i], branch[i]) is matrix.State.DEAD:
+            if branch[merger_i] in self.best_chain or matrix.get_link_to(branch[merger_i], branch[i]) is matrix.State.DEAD:
                 continue
 
             announcements.append(BULLET + '{} should link to `{}` (currently `{}`)'.format(
@@ -244,7 +244,6 @@ class Database():
 
 
     def stringify_chain(self, chain, length=True):
-
         """Converts a chain into a string"""
         non_broken = 0
         for i in range(len(chain)-1, 0, -1):
