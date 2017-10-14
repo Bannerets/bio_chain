@@ -17,7 +17,7 @@ def markdown_escape(s, code=False):
     if code:
         return s
 
-    return s.replace('*', '\\*').replace('_', '\\_')
+    return s.replace('\\', '\\\\').replace('*', '\\*').replace('_', '\\_').replace('[', '\\[')
 
 
 def caseless_set_eq(list1, list2):

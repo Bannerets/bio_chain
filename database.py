@@ -174,6 +174,8 @@ class Database():
                 if link_id:
                     self.matrix.set_link_to(user_id, link_id, matrix.State.REAL)
 
+        self.save()
+
 
 
     def clear_dead_links(self):
@@ -235,9 +237,9 @@ class Database():
                 continue
 
             announcements.append(BULLET + '{} should link to `{}` instead of `{}`'.format(
-                self.users[branch[merger_i]],
-                self.users[head],
-                self.users[branch[merger_i+1]],
+                markdown_escape(self.users[branch[merger_i]]),
+                markdown_escape(self.users[head], True),
+                markdown_escape(self.users[branch[merger_i+1]], True),
             ))
 
             head = branch[0]

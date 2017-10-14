@@ -59,11 +59,9 @@ class User():
         try:
             new_username = bot.getChatMember(CHAT_ID, self.id).user.username or ''
             if new_username != self.username:
-                old_username_str = str(self)
+                if new_username.lower() != self.username.lower():
+                    pending_changes.append( changes.Username(self.id, self.username, new_username) )
                 self.username = new_username
-                new_username_str = str(self)
-                if old_username_str.lower() != new_username_str.lower():
-                    pending_changes.append( changes.Username(self.id, old_username_str, new_username_str) )
         except telegram.error.TimedOut:
             print('  Timed out fetching username')
         except Exception as e:

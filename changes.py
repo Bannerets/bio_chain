@@ -15,16 +15,22 @@ class Base():
 class Username(Base):
     def shout(self, db):
         shouts = []
-        shouts.append(BULLET + '{} has changed their username to {}!'.format(
-            markdown_escape(self.last),
-            markdown_escape(self.current)
-        ))
+        if not self.current:
+            shouts.append(BULLET + '@{} ({}) has removed their username!'.format(
+                markdown_escape(self.last),
+                self.user_id
+            ))
+        elif self.last and self.current:
+            shouts.append(BULLET + '@{} has changed their username to @{}!'.format(
+                markdown_escape(self.last),
+                markdown_escape(self.current)
+            ))
 
         for i in range(1, len(db.best_chain)):
-            this_id, next_id = db.best_chain[i-1], db.best_chain[i]
-            if this_id == self.user_id and db.matrix.get_link_to(this_id, next_id) is not matrix.State.REAL:
+            prev_id, this_id = db.best_chain[i-1], db.best_chain[i]
+            if this_id == self.user_id and db.matrix.get_link_to(prev_id, this_id) is not matrix.State.REAL:
                 shouts.append(BULLET_2 + '{} should update their bio because of this!'.format(
-                    markdown_escape(db.users[next_id])
+                    markdown_escape(db.users[prev_id])
                 ))
                 break
 
@@ -48,17 +54,17 @@ class Bio(Base):
                     markdown_escape(db.users[next_id], True)
                 ))
 
-                if i > 0:
+                if i < 2:
                     break
                 shouts.append(BULLET_2 + '{} might want to link to `{}` because of this!'.format(
-                    markdown_escape(db.users[db.best_chain[i - 1]]),
+                    markdown_escape(db.users[db.best_chain[i - 2]]),
                     markdown_escape(db.users[next_id], True)
                 ))
                 break
 
         for link_username in self.current:
             link_id = db.translation_table.get(link_username.lower(), None)
-            if link_id == correct_link_id or link_id == self.id:
+            if link_id == correct_link_id or link_id == self.user_id:
                 continue
 
             warn_username = '@'+link_username
