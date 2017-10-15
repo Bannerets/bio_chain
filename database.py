@@ -249,7 +249,7 @@ class Database():
 
     def stringify_chain(self, chain, length=True):
         """Converts a chain into a string"""
-        non_broken = 0
+        non_broken = 1
         for i in range(len(chain)-1, 0, -1):
             this_id, next_id = chain[i-1], chain[i]
 
@@ -261,7 +261,7 @@ class Database():
         if length:
             chain_length = len(chain)
             chain_str += f'Chain length: {chain_length}\n'
-            if non_broken != chain_length - 1:
+            if non_broken != chain_length:
                 chain_str += f'Length without breaks: {non_broken}\n\n'
             else:
                 chain_str += '\n'

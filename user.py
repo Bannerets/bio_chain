@@ -27,7 +27,7 @@ class User():
 
     def __str__(self):
         #todo: handle blank usename better
-        return '@' + self.username if self.username else f'[no username: {self.id}]'
+        return '@' + self.username if self.username else f'id:{self.id}'
 
 
     def str_with_id(self):
@@ -57,7 +57,10 @@ class User():
         pending_changes = []
 
         try:
-            new_username = bot.getChatMember(CHAT_ID, self.id).user.username or ''
+            member = bot.getChatMember(CHAT_ID, self.id)
+            new_username = member.user.username or ''
+            if not new_username and member.status.lower() in ['left', 'kicked']:
+                raise RuntimeError('user left/kicked, no username available')
             if new_username != self.username:
                 if new_username.lower() != self.username.lower():
                     pending_changes.append( changes.Username(self.id, self.username, new_username) )
@@ -66,24 +69,24 @@ class User():
             print('  Timed out fetching username')
         except Exception as e:
             self.username_fetch_failed = True
-            print('  Failed to fetch username', type(e))
+            print('  Failed to fetch username', type(e), e)
 
         return pending_changes
 
     def update_bio(self):
-        if not self.username:
-            print(f'  Tried to scrape blank username')
-            return []
+        if self.username:
+            r = requests.get(f'http://t.me/{self.username}')
+            if not r.ok:
+                print(f'  Request for bio failed ({r.status_code})')
+                return []
 
-        r = requests.get(f'http://t.me/{self.username}')
-        if not r.ok:
-            print(f'  Request for bio failed ({r.status_code})')
-            return []
-
-        bio = RE_SCRAPE_BIO.findall(r.text)
-        if not bio:
-            print('  Failed to scrape bio tag')
-            return []
+            bio = RE_SCRAPE_BIO.findall(r.text)
+            if not bio:
+                print('  Failed to scrape bio tag')
+                return []
+        else:
+            print('  Tried to scrape blank username')
+            bio = ''
 
         new_bio = {}
         for bio_username in RE_USERNAME.findall(html.unescape(bio[0])):

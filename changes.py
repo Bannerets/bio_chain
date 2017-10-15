@@ -16,8 +16,9 @@ class Username(Base):
     def shout(self, db):
         shouts = []
         if not self.current:
-            shouts.append(BULLET + '@{} ({}) has removed their username!'.format(
+            shouts.append(BULLET + '[@{}](tg://user?id={}) ({}) has removed their username!'.format(
                 markdown_escape(self.last),
+                self.user_id,
                 self.user_id
             ))
         elif self.last and self.current:
@@ -49,8 +50,9 @@ class Bio(Base):
 
                 if db.matrix.get_link_to(this_id, next_id) is matrix.State.REAL:
                     break
-                shouts.append(BULLET + '{}\'s bio should have a link to `{}` but it doesn\'t!'.format(
+                shouts.append(BULLET + '[{}](tg://user?id={})\'s bio should have a link to `{}` but it doesn\'t!'.format(
                     markdown_escape(db.users[self.user_id]),
+                    db.users[self.user_id],
                     markdown_escape(db.users[next_id], True)
                 ))
 
@@ -70,11 +72,12 @@ class Bio(Base):
             warn_username = '@'+link_username
             warn_command = 'might want to'
             if link_id:
-                warn_username = str(db.users[self.user_id])
+                warn_username = str(db.users[link_id])
                 warn_command = 'should'
 
-            shouts.append(BULLET + '{} {} remove their unnecessary link to `{}`!'.format(
+            shouts.append(BULLET + '[{}](tg://user?id={}) {} remove their unnecessary link to `{}`!'.format(
                 markdown_escape(db.users[self.user_id]),
+                markdown_escape(self.user_id),
                 warn_command,
                 markdown_escape(warn_username, True)
             ))

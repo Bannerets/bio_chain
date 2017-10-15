@@ -11,13 +11,17 @@ def get_current_timestamp():
     return round(time.time())
 
 
-def markdown_escape(s, code=False):    
+def markdown_escape(s, code=False, escape_links=True):    
     s = str(s).replace('`', '\\`')
 
     if code:
         return s
 
-    return s.replace('\\', '\\\\').replace('*', '\\*').replace('_', '\\_').replace('[', '\\[')
+    s = s.replace('\\', '\\\\').replace('*', '\\*').replace('_', '\\_')
+    if not escape_links:
+        return s
+
+    return s.replace('[', '\\[')
 
 
 def caseless_set_eq(list1, list2):
