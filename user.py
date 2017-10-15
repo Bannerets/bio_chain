@@ -86,7 +86,7 @@ class User():
                 return []
         else:
             print('  Tried to scrape blank username')
-            bio = ''
+            bio = ['']
 
         new_bio = {}
         for bio_username in RE_USERNAME.findall(html.unescape(bio[0])):
