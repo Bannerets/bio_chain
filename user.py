@@ -30,6 +30,9 @@ class User():
         return '@' + self.username if self.username else f'id:{self.id}'
 
 
+    def get_mention(self):
+        return '<a href="tg://user?id={}">{}</a>'.format(self.id, str(self))
+
     def str_with_id(self):
         return f'{self} [{self.id}]' if self.username else str(self)
 

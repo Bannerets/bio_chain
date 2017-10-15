@@ -15,23 +15,22 @@ class Base():
 class Username(Base):
     def shout(self, db):
         shouts = []
-        if not self.current:
-            shouts.append(BULLET + '[@{}](tg://user?id={}) ({}) has removed their username!'.format(
-                markdown_escape(self.last),
-                self.user_id,
-                self.user_id
-            ))
-        elif self.last and self.current:
-            shouts.append(BULLET + '@{} has changed their username to @{}!'.format(
-                markdown_escape(self.last),
-                markdown_escape(self.current)
-            ))
+        if self.current != self.last:
+            if not self.current:
+                shouts.append(BULLET + '{} has removed their username!'.format(
+                    db.users[self.user_id].get_mention()
+                ))
+            elif self.last and self.current:
+                shouts.append(BULLET + '@{} has changed their username to @{}!'.format(
+                    self.last,
+                    self.current
+                ))
 
         for i in range(1, len(db.best_chain)):
             prev_id, this_id = db.best_chain[i-1], db.best_chain[i]
             if this_id == self.user_id and db.matrix.get_link_to(prev_id, this_id) is not matrix.State.REAL:
                 shouts.append(BULLET_2 + '{} should update their bio because of this!'.format(
-                    markdown_escape(db.users[prev_id])
+                    db.users[prev_id].get_mention()
                 ))
                 break
 
@@ -54,17 +53,16 @@ class Bio(Base):
 
                 if db.matrix.get_link_to(this_id, next_id) is matrix.State.REAL:
                     break
-                shouts.append(BULLET + '[{}](tg://user?id={})\'s bio should have a link to `{}` but it doesn\'t!'.format(
-                    markdown_escape(db.users[self.user_id]),
-                    db.users[self.user_id],
-                    markdown_escape(db.users[next_id], True)
+                shouts.append(BULLET + '{}\'s bio should have a link to <code>{}</code> but it doesn\'t!'.format(
+                    db.users[self.user_id].get_mention(),
+                    db.users[next_id]
                 ))
 
                 if i < 2:
                     break
-                shouts.append(BULLET_2 + '{} might want to link to `{}` because of this!'.format(
-                    markdown_escape(db.users[db.best_chain[i - 2]]),
-                    markdown_escape(db.users[next_id], True)
+                shouts.append(BULLET_2 + '{} might want to link to <code>{}</code> because of this!'.format(
+                    db.users[db.best_chain[i - 2]].get_mention(),
+                    db.users[next_id]
                 ))
                 break
 
@@ -79,11 +77,10 @@ class Bio(Base):
                 warn_username = str(db.users[link_id])
                 warn_command = 'should'
 
-            shouts.append(BULLET + '[{}](tg://user?id={}) {} remove their unnecessary link to `{}`!'.format(
-                markdown_escape(db.users[self.user_id]),
-                markdown_escape(self.user_id),
+            shouts.append(BULLET + '{} {} remove their unnecessary link to <code>{}</code>!'.format(
+                db.users[self.user_id].get_mention(),
                 warn_command,
-                markdown_escape(warn_username, True)
+                warn_username
             ))
 
 

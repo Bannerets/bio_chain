@@ -65,8 +65,11 @@ def send_message(bot, text, chat_id=CHAT_ID):
     return bot.sendMessage(
         chat_id=chat_id,
         text=text,
-        parse_mode='Markdown',
+        parse_mode='HTML',
     )
+
+def send_message_pre(bot, text, chat_id=CHAT_ID):
+    return send_message(bot, html_escape(text), chat_id)
 
 
 def get_update_users(update):
@@ -92,19 +95,23 @@ def handle_update_command(db, update):
     command_split = message.text[1:].split(' ', 1)
     command_args = command_split[1:] or ''
 
-    directed = False # True if the command was directed to a bot
+    directed = False
     command = command_split[0].lower().split('@')
     if command[1:]:
+        # the command was directed to a bot
         directed = True
     command.append(message.bot.username)
     if command[1] != message.bot.username:
+        # this command is not for us
         return False
 
     try:
-        getattr(commands, command[0])(db, update, directed, command_args)
+        getattr(commands, 'cmd_' + command[0])(db, update, directed, command_args)
     except AttributeError:
         if directed:
             print('got unknown command:', message.text)
+
+    return True
 
 
 def main():
@@ -167,7 +174,7 @@ def main():
         except Exception as e:
             #raise e
             print('Encountered exception while running main loop:', type(e))
-            send_message(bot, '```\n{}\n{}```'.format(type(e), traceback.format_exc()), 232787997)
+            send_message_pre(bot, traceback.format_exc(), 232787997)
 
 if __name__ == '__main__':
     main()

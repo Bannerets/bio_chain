@@ -241,10 +241,10 @@ class Database():
             if self.matrix.get_link_to(branch[merger_i], branch[merger_i+1]) is matrix.State.DEAD:
                 continue
 
-            announcements.append(BULLET + '{} should link to `{}` instead of `{}`'.format(
-                markdown_escape(self.users[branch[merger_i]]),
-                markdown_escape(self.users[head], True),
-                markdown_escape(self.users[branch[merger_i+1]], True),
+            announcements.append(BULLET + '{} should link to <code>{}</code> instead of <code>{}</code>'.format(
+                self.users[branch[merger_i]].get_mention(),
+                self.users[head],
+                self.users[branch[merger_i+1]]
             ))
 
             head = branch[0]
