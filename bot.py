@@ -69,7 +69,7 @@ def send_message(bot, text, chat_id=CHAT_ID):
     )
 
 def send_message_pre(bot, text, chat_id=CHAT_ID):
-    return send_message(bot, html_escape(text), chat_id)
+    return send_message(bot, '<pre>{}</pre>'.format(html_escape(text)), chat_id)
 
 
 def get_update_users(update):
