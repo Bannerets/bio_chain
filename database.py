@@ -24,15 +24,6 @@ class Database():
         # load matrix from loaded data
         self.matrix = matrix.LinkMatrix()
         for user_id, user_data in data.items():
-            #td: remove this
-            links = user_data.get('linked_by', [])
-            for link_id in links:
-                state = matrix.State.REAL
-                if link_id[0] == '!':
-                    link_id = link_id[1:]
-                    state = matrix.State.DEAD
-                self.matrix.set_link_from(user_id, link_id, state)
-
             links = user_data.get('links_to', [])
             for link_id in links:
                 state = matrix.State.REAL
