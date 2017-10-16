@@ -11,6 +11,10 @@ def get_current_timestamp():
     return round(time.time())
 
 
+def get_html_mention(user_id, text):
+    return '<a href="tg://user?id={}">{}</a>'.format(user_id, html_escape(text))
+
+
 def html_escape(s):    
     return str(s).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
 

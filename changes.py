@@ -18,7 +18,7 @@ class Username(Base):
         if self.current != self.last:
             if not self.current:
                 shouts.append(BULLET + '{} has removed their username!'.format(
-                    db.users[self.user_id].get_mention()
+                    get_html_mention(self.user_id, '@' + self.last)
                 ))
             elif self.last and self.current:
                 shouts.append(BULLET + '@{} has changed their username to @{}!'.format(
