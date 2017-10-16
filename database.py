@@ -187,6 +187,14 @@ class Database():
         return self.matrix.replace(matrix.State.DEAD, matrix.State.NONE)
 
 
+    def get_head_user_id(self):
+        for user_id in self.best_chain:
+            if self.users[user_id].username:
+                return user_id
+
+        raise RuntimeError('Couldn\'t find head in chain')
+
+
     def update_best_chain(self, end_node):
         self.update_links_from_bios()
         found_chains = self.matrix.get_chains_ending_on(end_node)
@@ -232,7 +240,7 @@ class Database():
         """Returns a list of any announcements that need to be made because branches off the best chain"""
         announcements = []
 
-        head = self.best_chain[0]
+        head = self.get_head_user_id()
         for branch in self.branches:
             branch_point_i, merger_i = self.matrix.chain_get_merge_points(self.best_chain, branch)
 

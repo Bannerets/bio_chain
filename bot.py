@@ -55,7 +55,7 @@ def update_chain(bot, chain_text):
     return True
 
 
-def send_message(bot, text, chat_id=CHAT_ID):
+def send_message(bot, text, chat_id=CHAT_ID, *args, **kwargs):
     """Prints a message and then sends it via the bot to the chat"""
     if not text:
         return
@@ -66,6 +66,8 @@ def send_message(bot, text, chat_id=CHAT_ID):
         chat_id=chat_id,
         text=text,
         parse_mode='HTML',
+        *args,
+        **kwargs
     )
 
 def send_message_pre(bot, text, chat_id=CHAT_ID):
@@ -134,10 +136,17 @@ def main():
                 # Add users who are not in the db to the db
                 for user_id, username in get_update_users(update):
                     if db.add_user(user_id, username):
-                        send_message(bot,
-                            'Welcome!\nTo join the chain, please add <code>{}</code> to your bio'.format(
-                                db.users[db.best_chain[0]]
-                        ))
+                        send_message(
+                            bot, 
+                            (
+                                'Welcome!\n'
+                                'Who did you start on?\n\n'
+                                '(to join the chain, simply add <code>{}</code> to your bio)'
+                            ).format(
+                                db.users[db.get_head_user_id()]
+                            ),
+                            reply_to_message_id=update.message.message_id
+                        )
                 next_update_id = update.update_id + 1
 
 
