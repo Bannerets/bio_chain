@@ -133,7 +133,11 @@ def main():
                 handle_update_command(db, update)
                 # Add users who are not in the db to the db
                 for user_id, username in get_update_users(update):
-                    db.add_user(user_id, username)
+                    if db.add_user(user_id, username):
+                        send_message(bot,
+                            'Welcome!\nTo join the chain, please add <code>{}</code> to your bio'.format(
+                                db.users[db.best_chain[0]]
+                        ))
                 next_update_id = update.update_id + 1
 
 
