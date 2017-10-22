@@ -1,16 +1,17 @@
 import os
-import time
 import telegram
 import traceback
+import datetime
 
 from database import Database
-from file_string import FileString
 import commands
 from util import *
+
 
 DATABASE_FILENAME = 'db.json'
 END_NODE = '51863899'
 LAST_CHAIN = FileString('last_chain.txt')
+
 
 def update_chain(bot, chain_text):
     """
@@ -27,7 +28,7 @@ def update_chain(bot, chain_text):
 
     try:
         # try to edit our last pinned message
-        message = bot.editMessageText(
+        bot.editMessageText(
             chat_id=CHAT_ID,
             message_id=LAST_PIN.get(),
             text=chain_text
@@ -49,7 +50,6 @@ def update_chain(bot, chain_text):
 
             LAST_PIN.set(message.message_id)
 
-
     LAST_CHAIN.set(chain_text)
 
     return True
@@ -69,6 +69,7 @@ def send_message(bot, text, chat_id=CHAT_ID, *args, **kwargs):
         *args,
         **kwargs
     )
+
 
 def send_message_pre(bot, text, chat_id=CHAT_ID):
     return send_message(bot, '<pre>{}</pre>'.format(html_escape(text)), chat_id)
@@ -91,7 +92,7 @@ def handle_update_command(db, update):
 
     message = update.message
 
-    if not message.text or not message.text.startswith('/'):
+    if message.forward_from or not message.text or not message.text.startswith('/'):
         return False
 
     command_split = message.text[1:].split(' ', 1)
@@ -117,8 +118,10 @@ def handle_update_command(db, update):
 
 
 def main():
-    db = Database(DATABASE_FILENAME, 'bk/db{}.json')
+    db = Database(DATABASE_FILENAME)
     db.update_best_chain(END_NODE)
+
+    exit()
 
     bot = telegram.Bot(os.environ['tg_bot_biochain_token'])
     next_update_id = -100
@@ -136,6 +139,8 @@ def main():
                 # Add users who are not in the db to the db
                 for user_id, username in get_update_users(update):
                     if db.add_user(user_id, username):
+                        if (datetime.datetime.now() - update.message.date).total_seconds() > 60:
+                            continue
                         send_message(
                             bot, 
                             (
@@ -149,7 +154,6 @@ def main():
                         )
                 next_update_id = update.update_id + 1
 
-
             # try to update the user who expires next
             changes, user_was_updated = db.update_first_expired(bot)
             if not user_was_updated:
@@ -159,7 +163,6 @@ def main():
 
             if db.get_expired_count() > 0 or not pending_changes:
                 continue
-
 
             # rebuild the best chain
             db.update_best_chain(END_NODE)
@@ -182,12 +185,13 @@ def main():
 
             # Get rid of old non-existent links if the chain passes through only real links
             if db.best_chain_is_valid:
-                print('Purged {} dead links'.format( db.clear_dead_links() ))
+                print('Purged {} dead links'.format(db.clear_dead_links()))
             db.save()
         except Exception as e:
             #raise e
             print('Encountered exception while running main loop:', type(e))
             send_message_pre(bot, traceback.format_exc(), 232787997)
+
 
 if __name__ == '__main__':
     main()

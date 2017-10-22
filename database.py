@@ -3,15 +3,13 @@ import json
 import requests
 from user import User
 import matrix
-from shutil import copyfile
 from util import *
 
 
-class Database():
+class Database:
     """Handles all operations that directly affect the data stored in the database"""
-    def __init__(self, filename, backup_fmt=''):
+    def __init__(self, filename):
         self.filename = filename
-        self.backup_fmt = backup_fmt
 
         with open(filename) as f:
             data = json.load(f)
@@ -40,12 +38,8 @@ class Database():
         self.branches = []
         self.best_chain_is_valid = True
 
-
-    def save(self, backup=True):
-        print('Saving db...' + ('' if backup else '(no backup)'))
-
-        if backup and self.backup_fmt:
-            copyfile(self.filename, self.backup_fmt.format(get_current_timestamp()))
+    def save(self):
+        print('Saving db...')
 
         data = {}
         for user_id, user in self.users.items():
@@ -61,9 +55,6 @@ class Database():
         with open(self.filename, 'w') as f:
             json.dump(data, f)
 
-
-
-
     def add_user(self, user_id, username):
         msg = 'Error adding user:'
         if user_id in self.users:
@@ -77,9 +68,8 @@ class Database():
             msg = 'Added user to db:'
 
         print(msg, self.users[user_id].str_with_id())
-        self.save(True)
+        self.save()
         return True
-
 
     def disable_user(self, user_id):
         if user_id in self.users and not self.users[user_id].disabled:
@@ -89,9 +79,6 @@ class Database():
 
         return False
 
-
-
-
     def get_expired_count(self):
         count = 0
         for user_id, user in self.users.items():
@@ -100,7 +87,6 @@ class Database():
             if user.is_expired():
                 count += 1
         return count
-
 
     def get_next_expired(self):
         next_id = None
@@ -119,7 +105,6 @@ class Database():
             print(f'Warning: there are {count} users that need updating!')
 
         return next_id
-
 
     def update_first_expired(self, bot):
         """Returns a tuple: (list of changes, True if the user was expired)"""
@@ -142,9 +127,6 @@ class Database():
 
         return changes, True
 
-
-
-
     def update_translation_table(self):
         """builds a translation table: {username.lower(): user.id}"""
         self.translation_table = {}
@@ -153,7 +135,6 @@ class Database():
             if user.disabled or not user.username:
                 continue
             self.translation_table[user.username.lower()] = user_id
-
 
     def update_links_from_bios(self):
         # Make all links dead, so that changes can be caught
@@ -172,11 +153,8 @@ class Database():
 
         self.save()
 
-
-
     def clear_dead_links(self):
         return self.matrix.replace(matrix.State.DEAD, matrix.State.NONE)
-
 
     def get_head_user_id(self):
         for user_id in self.best_chain:
@@ -185,15 +163,16 @@ class Database():
 
         raise RuntimeError('Couldn\'t find head in chain')
 
-
     def update_best_chain(self, end_node):
         self.update_links_from_bios()
         found_chains = self.matrix.get_chains_ending_on(end_node)
+        print(found_chains)
 
         # find the best chain
         best_index = 0
         for index, this_chain in enumerate(found_chains):
-            if index == best_index: continue
+            if index == best_index:
+                continue
 
             this_tally = self.matrix.chain_tally(found_chains[index])
             this_valid, this_broken = this_tally[matrix.State.REAL], this_tally[matrix.State.DEAD]
@@ -204,8 +183,10 @@ class Database():
             if this_valid > best_valid or (this_valid == best_valid and this_broken < best_broken):
                 best_index = index
             elif this_valid == best_valid and this_broken == best_broken:
-                head1, head2, i = self.matrix.chain_get_merge_points(found_chains[best_index], this_chain)
-                if self.users[head2].joined < self.users[head1].joined:
+                head1i, head2i = self.matrix.chain_get_merge_points(found_chains[best_index], this_chain)
+                head1_joined = self.users[found_chains[best_index][head1i]].joined or 0
+                head2_joined = self.users[this_chain[head2i]].joined or 0
+                if head2_joined < head1_joined:
                     best_index = index
 
         best_chain = found_chains[best_index]
@@ -225,7 +206,6 @@ class Database():
         self.branches = found_chains
         self.best_chain_is_valid = self.matrix.chain_all_links_equal(best_chain)
         return self.best_chain_is_valid
-
 
     def get_branch_announcements(self):
         """Returns a list of any announcements that need to be made because branches off the best chain"""
@@ -249,7 +229,6 @@ class Database():
             head = branch[0]
 
         return '\n'.join(announcements)
-
 
     def stringify_chain(self, chain, length=True):
         """Converts a chain into a string"""

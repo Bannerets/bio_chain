@@ -14,12 +14,12 @@ class State(Enum):
     NONE = 0
     REAL = 1
 
-class LinkMatrix():
+
+class LinkMatrix:
     """Wrapper for two matricies that represent forward and backwards connections in a graph"""
     def __init__(self):
         self.links_to = self.__new_empty()
         self.links_from = self.__new_empty()
-        
 
     def __new_empty(self):
         return defaultdict(
@@ -27,7 +27,6 @@ class LinkMatrix():
                 lambda: State.NONE
             )
         )
-
 
     def replace(self, state, new_state):
         count = 0
@@ -38,7 +37,6 @@ class LinkMatrix():
                     count += 1
         return count
 
-
     def set_link_to(self, linker, linked, state):
         self.links_to[linker][linked] = state
         self.links_from[linked][linker] = state
@@ -47,13 +45,11 @@ class LinkMatrix():
         self.links_from[linked][linker] = state
         self.links_to[linker][linked] = state
 
-
     def get_link_to(self, linker, linked):
         return self.links_to[linker][linked]
 
     def get_link_from(self, linked, linker):
         return self.links_from[linked][linker]
-
 
     def get_links_to(self, linker, filter=lambda l: l is not State.NONE):
         """yields nodes that the linker links to that match filter"""
@@ -74,7 +70,6 @@ class LinkMatrix():
             if self.links_to[linker][linked] is state:
                 return True
         return False
-
 
     def get_chains_ending_on(self, end_node):
         """
@@ -108,7 +103,6 @@ class LinkMatrix():
                 found_chains.append(this_chain[::-1])
 
         return found_chains
-
 
     def chain_all_links_equal(self, chain, state=State.REAL):
         """Returns true if all links in chain are equal to state"""
@@ -160,4 +154,3 @@ if __name__ == '__main__':
     print(matrix.chain_get_merge_points(chains[0], chains[1]))
 
     print(matrix.chain_tally(chains[0]))
-    

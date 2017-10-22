@@ -2,7 +2,7 @@ import matrix
 from util import *
 
 
-class Base():
+class Base:
     def __init__(self, user_id, last, current):
         self.user_id = user_id
         self.last = last
@@ -35,7 +35,6 @@ class Username(Base):
                 break
 
         return '\n'.join(shouts)
-
 
     def iter_need_update(self, db):
         return db.matrix.get_links_from(self.user_id)
@@ -83,9 +82,7 @@ class Bio(Base):
                 warn_username
             ))
 
-
         return '\n'.join(shouts)
-
 
     def iter_need_update(self, db):
         return db.matrix.get_links_to(self.user_id)

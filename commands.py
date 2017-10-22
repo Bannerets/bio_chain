@@ -1,4 +1,3 @@
-import commands
 from util import *
 
 
@@ -8,6 +7,7 @@ def cmd_help(db, update, directed, command_args):
         return
 
     update.message.reply_text(help_text, parse_mode='Markdown')
+
 
 def cmd_pin(db, update, directed, command_args):
     """/pin - quotes the current pin message"""
@@ -19,9 +19,9 @@ def cmd_pin(db, update, directed, command_args):
 
 
 help_text = []
-for attr in dir(commands):
-    if attr.startswith('cmd_'):
-        doc = getattr(commands, attr).__doc__
+for name, attr in locals().copy().items():
+    if callable(attr) and name.startswith('cmd_'):
+        doc = attr.__doc__
         if doc:
             help_text.append(doc)
         else:

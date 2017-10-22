@@ -5,10 +5,12 @@ import re
 from util import *
 import telegram
 
+
 RE_SCRAPE_BIO = re.compile(r'<meta +property="og:description" +content="(.+?)".*>')
 RE_USERNAME = re.compile(r'@([a-zA-Z][\w\d]{4,31})')
 
-class User():
+
+class User:
     defaults = {
         'bio': [],
         'joined': None,
@@ -24,11 +26,9 @@ class User():
         for key, default_val in self.defaults.items():
             setattr(self, key, data.get(key, default_val))
 
-
     def __str__(self):
-        #todo: handle blank usename better
+        #todo: handle blank username better
         return '@' + self.username if self.username else f'id:{self.id}'
-
 
     def get_mention(self):
         return get_html_mention(self.id, str(self))
@@ -36,25 +36,20 @@ class User():
     def str_with_id(self):
         return f'{self} [{self.id}]' if self.username else str(self)
 
-
     def is_expired(self):
         return self.expires < get_current_timestamp()
-
 
     def reset_expiry(self):
         self.expires = get_current_timestamp() + 60
         return True
 
-
     def to_dict(self):
-        result = {}
-        result['username'] = self.username
+        result = {'username': self.username}
         for key, default_val in self.defaults.items():
             current_val = getattr(self, key)
             if current_val != default_val:
                 result[key] = current_val
         return result
-
 
     def update_username(self, bot):
         pending_changes = []
@@ -66,7 +61,7 @@ class User():
                 raise RuntimeError('user left/kicked, no username available')
             if new_username != self.username:
                 if new_username.lower() != self.username.lower():
-                    pending_changes.append( changes.Username(self.id, self.username, new_username) )
+                    pending_changes.append(changes.Username(self.id, self.username, new_username))
                 self.username = new_username
         except telegram.error.TimedOut:
             print('  Timed out fetching username')
@@ -100,7 +95,7 @@ class User():
         pending_changes = []
         new_bio = [v for k, v in new_bio.items()]
         if not caseless_set_eq(new_bio, self.bio):
-            pending_changes.append( changes.Bio(self.id, self.bio, new_bio) )
+            pending_changes.append(changes.Bio(self.id, self.bio, new_bio))
             self.bio = new_bio
 
         return pending_changes
@@ -111,7 +106,6 @@ class User():
         pending_changes.extend(self.update_bio())
         self.reset_expiry()
         return pending_changes
-
 
 
 if __name__ == '__main__':

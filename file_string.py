@@ -1,4 +1,4 @@
-class FileString():
+class FileString:
     """Wrapper for a string that is stored in a file"""
     def __init__(self, filename):
         self.filename = filename
@@ -22,7 +22,8 @@ class FileString():
 
     def __str__(self):
         return self.data
-    
+
+
 if __name__ == '__main__':
     test = FileString('test.txt')
     test.set('foobar')
