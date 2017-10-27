@@ -1,7 +1,9 @@
 import os
-import telegram
 import traceback
 import datetime
+from telegram.ext import Updater, MessageHandler, Filters
+from signal import signal, SIGINT, SIGTERM, SIGABRT
+import logging
 
 from database import Database
 import commands
@@ -11,6 +13,9 @@ from util import *
 DATABASE_FILENAME = 'db.json'
 END_NODE = '51863899'
 LAST_CHAIN = FileString('last_chain.txt')
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 def update_chain(bot, chain_text):
@@ -117,43 +122,88 @@ def handle_update_command(db, update):
     return True
 
 
+def on_error(bot, update, error):
+    send_message_pre(bot, error + '\n\n' + update, 232787997)
+    logger.warning('Update "%s" caused error "%s"', update, error)
+
+
 def main():
+    def on_signal(signum, frame):
+        if updater.running:
+            updater.stop()
+        else:
+            exit(1)
+
+
+    def on_command(bot, update):
+        message = update.message
+
+        command_split = message.text[1:].split(' ', 1)
+        command_args = command_split[1:] or ''
+
+        command = command_split[0].lower().split('@')
+        directed = bool(command[1:])
+        command.append(bot.username)
+        if command[1].lower() != bot.username.lower():
+            # this command is not for us
+            return
+
+        try:
+            getattr(commands, 'cmd_' + command[0].lower())(db, update, directed, command_args)
+        except AttributeError:
+            if directed:
+                print('got unknown command:', message.text)
+
+
+    def on_new_members(bot, update):
+        for user in update.message.new_chat_members:
+            if user.is_bot:
+                continue
+            if not db.add_user(str(user.id), user.username or ''):
+                continue
+            if (datetime.datetime.now() - update.message.date).total_seconds() > 60:
+                continue
+
+            send_message(
+                bot, 
+                (
+                    'Welcome, {}!\n'
+                    '<a href="https://t.me/GBReborn_bot?start=-1001145055784_rules">Read the rules</a>\n\n'
+                    'Who did you start at?\n\n'
+                    '(to join the chain, simply add <code>{}</code> to your bio)'
+                ).format(
+                    get_html_mention(user.id, user.username or user.first_name),
+                    db.users[db.get_head_user_id()]
+                ),
+                reply_to_message_id=update.message.message_id
+            )
+
+
+    def on_left_member(bot, update):
+        left_id = str(update.message.left_chat_member.id)
+        if left_id in db.users:
+            db.users[left_id].username_fetch_failed = True
+
+
     db = Database(DATABASE_FILENAME)
     db.update_best_chain(END_NODE)
 
-    exit()
+    updater = Updater(os.environ['tg_bot_biochain_token'])
+    bot = updater.bot
+    updater.dispatcher.add_handler(
+        MessageHandler(Filters.chat(CHAT_ID) & Filters.command & (~Filters.forwarded), on_command)
+    )
+    updater.dispatcher.add_handler(MessageHandler(Filters.status_update.new_chat_members, on_new_members))
+    updater.dispatcher.add_handler(MessageHandler(Filters.status_update.left_chat_member, on_left_member))
+    updater.dispatcher.add_error_handler(on_error)
+    updater.start_polling()
 
-    bot = telegram.Bot(os.environ['tg_bot_biochain_token'])
-    next_update_id = -100
+    for sig in (SIGINT, SIGTERM, SIGABRT):
+        signal(sig, on_signal)
 
     pending_changes = []
-    while 1:
+    while updater.running:
         try:
-            try:
-                updates = bot.getUpdates(offset=next_update_id)
-            except telegram.error.TimedOut:
-                updates = []
-
-            for update in updates:
-                handle_update_command(db, update)
-                # Add users who are not in the db to the db
-                for user_id, username in get_update_users(update):
-                    if db.add_user(user_id, username):
-                        if (datetime.datetime.now() - update.message.date).total_seconds() > 60:
-                            continue
-                        send_message(
-                            bot, 
-                            (
-                                'Welcome!\n'
-                                'Who did you start on?\n\n'
-                                '(to join the chain, simply add <code>{}</code> to your bio)'
-                            ).format(
-                                db.users[db.get_head_user_id()]
-                            ),
-                            reply_to_message_id=update.message.message_id
-                        )
-                next_update_id = update.update_id + 1
-
             # try to update the user who expires next
             changes, user_was_updated = db.update_first_expired(bot)
             if not user_was_updated:
@@ -165,12 +215,17 @@ def main():
                 continue
 
             # rebuild the best chain
+            last_head = db.get_head_user_id()
             db.update_best_chain(END_NODE)
 
             # post the best chain if it's different to the old one
-            if update_chain(bot, db.stringify_chain(db.best_chain)):
+            update_chain(bot, db.stringify_chain(db.best_chain))
+
+            # shout at branches if the head has changed
+            if db.get_head_user_id() != last_head:
                 send_message(bot, db.get_branch_announcements())
 
+            # shout at users whose data has changed
             for pending_change in pending_changes:
                 send_message(bot, pending_change.shout(db))
             pending_changes.clear()

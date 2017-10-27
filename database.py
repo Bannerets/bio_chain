@@ -166,7 +166,6 @@ class Database:
     def update_best_chain(self, end_node):
         self.update_links_from_bios()
         found_chains = self.matrix.get_chains_ending_on(end_node)
-        print(found_chains)
 
         # find the best chain
         best_index = 0

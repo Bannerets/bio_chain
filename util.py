@@ -1,6 +1,7 @@
 import time
 from file_string import FileString
 
+
 CHAT_ID = -1001145055784
 LAST_PIN = FileString('last_pin.txt')
 BULLET = '∙ '
@@ -21,3 +22,7 @@ def html_escape(s):
 
 def caseless_set_eq(list1, list2):
     return {v.lower() for v in list1} == {v.lower() for v in list2}
+
+
+def join_with_conjunction(l, sep=', ', conjunction=' and '):
+    return sep.join(l[:-2] + [conjunction.join(l[-2:])])

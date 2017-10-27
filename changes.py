@@ -20,6 +20,11 @@ class Username(Base):
                 shouts.append(BULLET + '{} has removed their username!'.format(
                     get_html_mention(self.user_id, '@' + self.last)
                 ))
+            elif not self.last:
+                shouts.append(BULLET + '{} is now known as {}!'.format(
+                    get_html_mention(self.user_id, self.user_id),
+                    db.users[self.user_id].get_mention()
+                ))
             elif self.last and self.current:
                 shouts.append(BULLET + '@{} has changed their username to @{}!'.format(
                     self.last,
@@ -41,6 +46,13 @@ class Username(Base):
 
 
 class Bio(Base):
+    def _get_shout_from_list(self, l, prefix):
+        return BULLET + prefix + ' remove their unnecessary link{} to <code>{}</code>!'.format(
+                's' if len(l) > 1 else '',
+                join_with_conjunction(l)
+            )
+
+
     def shout(self, db):
         shouts = []
         correct_link_id = 0
@@ -65,22 +77,23 @@ class Bio(Base):
                 ))
                 break
 
+        unnecessary_known = []
+        unnecessary_unknown = []
         for link_username in self.current:
             link_id = db.translation_table.get(link_username.lower(), None)
             if link_id == correct_link_id or link_id == self.user_id:
                 continue
 
-            warn_username = '@'+link_username
-            warn_command = 'might want to'
             if link_id:
-                warn_username = str(db.users[link_id])
-                warn_command = 'should'
+                unnecessary_known.append(str(db.users[link_id]))
+            else:
+                unnecessary_unknown.append('@'+link_username)
 
-            shouts.append(BULLET + '{} {} remove their unnecessary link to <code>{}</code>!'.format(
-                db.users[self.user_id].get_mention(),
-                warn_command,
-                warn_username
-            ))
+        username = db.users[self.user_id].get_mention()
+        if unnecessary_known:
+            shouts.append(self._get_shout_from_list(unnecessary_known, f'{username} should'))
+        if unnecessary_unknown:
+            shouts.append(self._get_shout_from_list(unnecessary_unknown, f'{username} might want to'))
 
         return '\n'.join(shouts)
 
